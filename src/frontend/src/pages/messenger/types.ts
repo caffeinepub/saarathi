@@ -1,4 +1,35 @@
-export type MsgType = "text" | "image" | "file";
+export type MsgType =
+  | "text"
+  | "image"
+  | "file"
+  | "task_request"
+  | "business_doc";
+export type TaskRequestStatus =
+  | "pending"
+  | "accepted"
+  | "change_requested"
+  | "denied";
+
+export interface TaskPayload {
+  activityId: string;
+  title: string;
+  taskType: string;
+  assignees: string[];
+  dateTime: string;
+  deadline: string;
+  location: string;
+  notes: string;
+}
+
+export interface BusinessDocPayload {
+  docId: string;
+  docType: "invoice" | "estimate" | "proposal";
+  docNumber: string;
+  clientName: string;
+  grandTotal: number;
+  date: string;
+  status: string;
+}
 
 export interface LocalUser {
   id: string;
@@ -27,6 +58,9 @@ export interface LocalMessage {
   timestamp: number;
   fileName?: string;
   fileSize?: string;
+  taskPayload?: TaskPayload;
+  taskStatus?: TaskRequestStatus;
+  businessDocPayload?: BusinessDocPayload;
 }
 
 export type ChatTarget =

@@ -1,40 +1,643 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
+  Briefcase,
+  Calendar,
+  CheckCircle,
   File,
   FileText,
   Loader2,
+  MapPin,
+  MessageSquarePlus,
   Paperclip,
   Send,
   Settings,
   Users,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { getAvatarColor } from "./sampleData";
-import type { ChatTarget, LocalGroup, LocalMessage } from "./types";
+import type {
+  BusinessDocPayload,
+  ChatTarget,
+  LocalGroup,
+  LocalMessage,
+  TaskPayload,
+  TaskRequestStatus,
+} from "./types";
 import { formatTime, getInitials } from "./types";
 
-interface Props {
-  currentChat: ChatTarget | null;
-  messages: LocalMessage[];
-  groups: LocalGroup[];
-  currentUserId: string;
-  currentDisplayName: string;
-  onSendMessage: (content: string, file?: File) => void;
-  onOpenSettings: (groupId: string) => void;
-  onBack: () => void;
-  isMobile: boolean;
+interface Activity {
+  id: string;
+  title: string;
+  taskType: string;
+  assignees: string[];
+  dateTime: string;
+  deadline: string;
+  location: string;
+  notes: string;
+  status: string;
+}
+
+interface StoredDoc {
+  id: string;
+  type: "invoice" | "estimate" | "proposal";
+  number: string;
+  date: string;
+  clientId: string;
+  status: string;
+  lineItems: Array<{ qty: number; rate: number; gstRate: number }>;
+}
+
+interface StoredClient {
+  id: string;
+  name: string;
+  state: string;
+  placeOfSupply: string;
+}
+
+function calcTotal(doc: StoredDoc, _clientState: string): number {
+  return doc.lineItems.reduce((sum, item) => {
+    const base = item.qty * item.rate;
+    const gst = base * (item.gstRate / 100);
+    return sum + base + gst;
+  }, 0);
+}
+
+function ShareBusinessDocModal({
+  open,
+  onClose,
+  onSend,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSend: (payload: BusinessDocPayload) => void;
+}) {
+  const [docs, setDocs] = useState<StoredDoc[]>([]);
+  const [clients, setClients] = useState<StoredClient[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const rawDocs = localStorage.getItem("saarathi_business_docs");
+      if (rawDocs) setDocs(JSON.parse(rawDocs));
+      else setDocs([]);
+      const rawClients = localStorage.getItem("saarathi_clients");
+      if (rawClients) setClients(JSON.parse(rawClients));
+      else setClients([]);
+    } catch {
+      setDocs([]);
+      setClients([]);
+    }
+    setSelected(null);
+  }, [open]);
+
+  const selectedDoc = docs.find((d) => d.id === selected);
+
+  function handleSend() {
+    if (!selectedDoc) return;
+    const client = clients.find((c) => c.id === selectedDoc.clientId);
+    onSend({
+      docId: selectedDoc.id,
+      docType: selectedDoc.type,
+      docNumber: selectedDoc.number,
+      clientName: client?.name ?? "Unknown Client",
+      grandTotal: calcTotal(selectedDoc, client?.state ?? ""),
+      date: selectedDoc.date,
+      status: selectedDoc.status,
+    });
+    onClose();
+  }
+
+  const TYPE_COLORS: Record<string, string> = {
+    invoice: "bg-amber-100 text-amber-700",
+    estimate: "bg-blue-100 text-blue-700",
+    proposal: "bg-purple-100 text-purple-700",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent
+        className="sm:max-w-md bg-white border border-amber-200"
+        data-ocid="messenger.share_doc.dialog"
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-amber-500 flex items-center justify-center">
+              <Briefcase className="w-4 h-4 text-white" />
+            </div>
+            Send Invoice / Proposal
+          </DialogTitle>
+        </DialogHeader>
+
+        {docs.length === 0 ? (
+          <div className="py-8 text-center">
+            <p className="text-muted-foreground text-sm">
+              No documents found. Create invoices or proposals in Business Suite
+              first.
+            </p>
+          </div>
+        ) : (
+          <ScrollArea className="h-64 border border-amber-100 rounded-lg">
+            <div className="p-2 space-y-1.5">
+              {docs.map((d) => {
+                const client = clients.find((c) => c.id === d.clientId);
+                const total = calcTotal(d, client?.state ?? "");
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setSelected(d.id)}
+                    className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                      selected === d.id
+                        ? "border-amber-400 bg-amber-50"
+                        : "border-transparent hover:bg-amber-50/60"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
+                          TYPE_COLORS[d.type] ?? "bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        {d.type}
+                      </span>
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {d.number}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-stone-800 truncate">
+                      {client?.name ?? "Unknown Client"}
+                    </p>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      ₹
+                      {total.toLocaleString("en-IN", {
+                        maximumFractionDigits: 2,
+                      })}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="border-stone-300 text-stone-600"
+            data-ocid="messenger.share_doc.cancel_button"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSend}
+            disabled={!selectedDoc}
+            className="bg-amber-500 hover:bg-amber-600 text-white"
+            data-ocid="messenger.share_doc.submit_button"
+          >
+            <Send className="w-4 h-4 mr-2" />
+            Send
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ShareActivityModal({
+  open,
+  onClose,
+  onSend,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSend: (payload: TaskPayload) => void;
+}) {
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const raw = localStorage.getItem("saarathi_activities");
+      if (raw) setActivities(JSON.parse(raw));
+      else setActivities([]);
+    } catch {
+      setActivities([]);
+    }
+    setSelected(null);
+  }, [open]);
+
+  const selectedActivity = activities.find((a) => a.id === selected);
+
+  function handleSend() {
+    if (!selectedActivity) return;
+    onSend({
+      activityId: selectedActivity.id,
+      title: selectedActivity.title,
+      taskType: selectedActivity.taskType,
+      assignees: selectedActivity.assignees,
+      dateTime: selectedActivity.dateTime,
+      deadline: selectedActivity.deadline,
+      location: selectedActivity.location,
+      notes: selectedActivity.notes,
+    });
+    onClose();
+  }
+
+  const TASK_TYPE_LABELS: Record<string, string> = {
+    meeting: "Meeting",
+    groupTask: "Group Task",
+    other: "Other",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent
+        className="sm:max-w-md bg-white border border-amber-200"
+        data-ocid="messenger.share_activity.dialog"
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-amber-500 flex items-center justify-center">
+              <MessageSquarePlus className="w-4 h-4 text-white" />
+            </div>
+            Share Activity as Task Request
+          </DialogTitle>
+        </DialogHeader>
+
+        {activities.length === 0 ? (
+          <div className="py-8 text-center">
+            <p className="text-muted-foreground text-sm">
+              No activities found. Create activities in the 5W Activity Builder
+              first.
+            </p>
+          </div>
+        ) : (
+          <ScrollArea className="h-64 border border-amber-100 rounded-lg">
+            <div className="p-2 space-y-1.5">
+              {activities.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setSelected(a.id)}
+                  className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                    selected === a.id
+                      ? "border-amber-400 bg-amber-50"
+                      : "border-transparent hover:bg-amber-50/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                      {TASK_TYPE_LABELS[a.taskType] ?? a.taskType}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground ml-auto">
+                      {a.status}
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-stone-800 truncate">
+                    {a.title}
+                  </p>
+                  {a.assignees.length > 0 && (
+                    <p className="text-xs text-stone-500 mt-0.5 truncate">
+                      {a.assignees.join(", ")}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="border-stone-300 text-stone-600"
+            data-ocid="messenger.share_activity.cancel_button"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSend}
+            disabled={!selectedActivity}
+            className="bg-amber-500 hover:bg-amber-600 text-white"
+            data-ocid="messenger.share_activity.submit_button"
+          >
+            <Send className="w-4 h-4 mr-2" />
+            Send as Task Request
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const STATUS_LABELS: Record<TaskRequestStatus, string> = {
+  pending: "Pending",
+  accepted: "Accepted",
+  change_requested: "Change Requested",
+  denied: "Denied",
+};
+
+const STATUS_COLORS: Record<TaskRequestStatus, string> = {
+  pending: "bg-amber-100 text-amber-700 border-amber-300",
+  accepted: "bg-green-100 text-green-700 border-green-300",
+  change_requested: "bg-blue-100 text-blue-700 border-blue-300",
+  denied: "bg-red-100 text-red-700 border-red-300",
+};
+
+function TaskRequestCard({
+  msg,
+  isOwn,
+  onUpdateStatus,
+}: {
+  msg: LocalMessage;
+  isOwn: boolean;
+  onUpdateStatus: (msgId: string, status: TaskRequestStatus) => void;
+}) {
+  const tp = msg.taskPayload;
+  if (!tp) return null;
+  const status = msg.taskStatus ?? "pending";
+
+  const TASK_TYPE_LABELS: Record<string, string> = {
+    meeting: "Meeting",
+    groupTask: "Group Task",
+    other: "Other",
+  };
+
+  return (
+    <div
+      className={`max-w-[360px] rounded-2xl border-2 overflow-hidden shadow-sm ${
+        isOwn ? "border-amber-300" : "border-amber-200"
+      } bg-white`}
+    >
+      {/* Card Header */}
+      <div className="bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-2.5 flex items-center gap-2">
+        <MessageSquarePlus className="w-4 h-4 text-white flex-shrink-0" />
+        <span className="text-white font-semibold text-xs uppercase tracking-wide">
+          Task Request
+        </span>
+        <span className="ml-auto text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full">
+          {TASK_TYPE_LABELS[tp.taskType] ?? tp.taskType}
+        </span>
+      </div>
+
+      {/* Card Body */}
+      <div className="p-3 space-y-2">
+        <p className="font-bold text-stone-800 text-sm leading-snug">
+          {tp.title}
+        </p>
+
+        {tp.assignees.length > 0 && (
+          <div className="flex items-center gap-1.5 text-xs text-stone-600">
+            <Users className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+            <span className="truncate">{tp.assignees.join(", ")}</span>
+          </div>
+        )}
+
+        {tp.dateTime && (
+          <div className="flex items-center gap-1.5 text-xs text-stone-600">
+            <Calendar className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+            <span>
+              {new Date(tp.dateTime).toLocaleDateString("en-IN", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}
+              {" at "}
+              {new Date(tp.dateTime).toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          </div>
+        )}
+
+        {tp.location && (
+          <div className="flex items-center gap-1.5 text-xs text-stone-600">
+            <MapPin className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+            <span className="truncate">{tp.location}</span>
+          </div>
+        )}
+
+        {tp.notes && (
+          <p className="text-xs text-stone-500 bg-amber-50 rounded-lg p-2 leading-relaxed line-clamp-2">
+            {tp.notes}
+          </p>
+        )}
+      </div>
+
+      {/* Actions / Status */}
+      <div className="px-3 pb-3">
+        {isOwn ? (
+          <div
+            className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border ${
+              STATUS_COLORS[status]
+            }`}
+          >
+            {status === "accepted" && <CheckCircle className="w-3 h-3" />}
+            {status === "denied" && <XCircle className="w-3 h-3" />}
+            {STATUS_LABELS[status]}
+          </div>
+        ) : status === "pending" ? (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => onUpdateStatus(msg.id, "accepted")}
+              className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors"
+              data-ocid="messenger.task.confirm_button"
+            >
+              Accept
+            </button>
+            <button
+              type="button"
+              onClick={() => onUpdateStatus(msg.id, "change_requested")}
+              className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 text-white transition-colors"
+              data-ocid="messenger.task.secondary_button"
+            >
+              Request Change
+            </button>
+            <button
+              type="button"
+              onClick={() => onUpdateStatus(msg.id, "denied")}
+              className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors"
+              data-ocid="messenger.task.delete_button"
+            >
+              Deny
+            </button>
+          </div>
+        ) : (
+          <div
+            className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border ${
+              STATUS_COLORS[status]
+            }`}
+          >
+            {status === "accepted" && <CheckCircle className="w-3 h-3" />}
+            {status === "denied" && <XCircle className="w-3 h-3" />}
+            {STATUS_LABELS[status]}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BusinessDocCard({ msg }: { msg: LocalMessage }) {
+  const bp = msg.businessDocPayload;
+  if (!bp) return null;
+
+  const TYPE_CONFIG: Record<
+    string,
+    { label: string; color: string; headerBg: string }
+  > = {
+    invoice: {
+      label: "Invoice",
+      color: "bg-amber-100 text-amber-700 border-amber-300",
+      headerBg: "from-amber-500 to-amber-400",
+    },
+    estimate: {
+      label: "Estimate",
+      color: "bg-blue-100 text-blue-700 border-blue-300",
+      headerBg: "from-blue-500 to-blue-400",
+    },
+    proposal: {
+      label: "Proposal",
+      color: "bg-purple-100 text-purple-700 border-purple-300",
+      headerBg: "from-purple-600 to-purple-500",
+    },
+  };
+  const cfg = TYPE_CONFIG[bp.docType] ?? TYPE_CONFIG.invoice;
+
+  return (
+    <div className="max-w-[340px] rounded-2xl border-2 border-amber-200 overflow-hidden shadow-sm bg-white">
+      <div
+        className={`bg-gradient-to-r ${cfg.headerBg} px-4 py-2.5 flex items-center gap-2`}
+      >
+        <Briefcase className="w-4 h-4 text-white flex-shrink-0" />
+        <span className="text-white font-semibold text-xs uppercase tracking-wide">
+          {cfg.label}
+        </span>
+        <span className="ml-auto text-[10px] font-mono bg-white/20 text-white px-2 py-0.5 rounded-full">
+          {bp.docNumber}
+        </span>
+      </div>
+      <div className="p-3 space-y-1.5">
+        <p className="font-bold text-stone-800 text-sm">{bp.clientName}</p>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-stone-500">
+            {new Date(bp.date).toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })}
+          </span>
+          <span className="text-sm font-bold text-amber-700">
+            ₹
+            {bp.grandTotal.toLocaleString("en-IN", {
+              maximumFractionDigits: 2,
+            })}
+          </span>
+        </div>
+        <Badge
+          variant="outline"
+          className={`text-[10px] capitalize ${cfg.color}`}
+        >
+          {bp.status}
+        </Badge>
+      </div>
+    </div>
+  );
 }
 
 function MessageBubble({
   msg,
   isOwn,
+  onUpdateTaskStatus,
 }: {
   msg: LocalMessage;
   isOwn: boolean;
+  onUpdateTaskStatus: (msgId: string, status: TaskRequestStatus) => void;
 }) {
+  if (msg.msgType === "task_request") {
+    return (
+      <div
+        className={`flex gap-2.5 ${isOwn ? "flex-row-reverse" : "flex-row"}`}
+      >
+        {!isOwn && (
+          <Avatar className="w-7 h-7 flex-shrink-0 mt-0.5">
+            <AvatarFallback
+              className={`text-[10px] font-bold text-white ${getAvatarColor(msg.senderId)}`}
+            >
+              {getInitials(msg.senderName)}
+            </AvatarFallback>
+          </Avatar>
+        )}
+        <div
+          className={`flex flex-col gap-0.5 ${isOwn ? "items-end" : "items-start"}`}
+        >
+          {!isOwn && (
+            <span className="text-[11px] font-semibold text-muted-foreground px-1">
+              {msg.senderName}
+            </span>
+          )}
+          <TaskRequestCard
+            msg={msg}
+            isOwn={isOwn}
+            onUpdateStatus={onUpdateTaskStatus}
+          />
+          <span className="text-[10px] text-muted-foreground px-1">
+            {formatTime(msg.timestamp)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (msg.msgType === "business_doc") {
+    return (
+      <div
+        className={`flex gap-2.5 ${isOwn ? "flex-row-reverse" : "flex-row"}`}
+      >
+        {!isOwn && (
+          <Avatar className="w-7 h-7 flex-shrink-0 mt-0.5">
+            <AvatarFallback
+              className={`text-[10px] font-bold text-white ${getAvatarColor(msg.senderId)}`}
+            >
+              {getInitials(msg.senderName)}
+            </AvatarFallback>
+          </Avatar>
+        )}
+        <div
+          className={`flex flex-col gap-0.5 ${isOwn ? "items-end" : "items-start"}`}
+        >
+          {!isOwn && (
+            <span className="text-[11px] font-semibold text-muted-foreground px-1">
+              {msg.senderName}
+            </span>
+          )}
+          <BusinessDocCard msg={msg} />
+          <span className="text-[10px] text-muted-foreground px-1">
+            {formatTime(msg.timestamp)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`flex gap-2.5 ${
@@ -113,12 +716,30 @@ function MessageBubble({
   );
 }
 
+interface Props {
+  currentChat: ChatTarget | null;
+  messages: LocalMessage[];
+  groups: LocalGroup[];
+  currentUserId: string;
+  currentDisplayName: string;
+  onSendMessage: (content: string, file?: File) => void;
+  onSendTaskRequest: (payload: TaskPayload) => void;
+  onSendBusinessDoc: (payload: BusinessDocPayload) => void;
+  onUpdateTaskStatus: (msgId: string, status: TaskRequestStatus) => void;
+  onOpenSettings: (groupId: string) => void;
+  onBack: () => void;
+  isMobile: boolean;
+}
+
 export default function ChatArea({
   currentChat,
   messages,
   groups,
   currentUserId,
   onSendMessage,
+  onSendTaskRequest,
+  onSendBusinessDoc,
+  onUpdateTaskStatus,
   onOpenSettings,
   onBack,
   isMobile,
@@ -126,6 +747,8 @@ export default function ChatArea({
   const [text, setText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [showShareActivity, setShowShareActivity] = useState(false);
+  const [showShareDoc, setShowShareDoc] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const msgCount = messages.length;
@@ -273,6 +896,7 @@ export default function ChatArea({
             key={msg.id}
             msg={msg}
             isOwn={msg.senderId === currentUserId}
+            onUpdateTaskStatus={onUpdateTaskStatus}
           />
         ))}
       </div>
@@ -311,6 +935,24 @@ export default function ChatArea({
             >
               <Paperclip className="w-4 h-4" />
             </button>
+            <button
+              type="button"
+              onClick={() => setShowShareActivity(true)}
+              className="p-2 text-amber-500 hover:text-amber-600 transition-colors rounded-lg hover:bg-amber-50 flex-shrink-0 mb-0.5"
+              title="Share Activity as Task Request"
+              data-ocid="messenger.share_activity.open_modal_button"
+            >
+              <MessageSquarePlus className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowShareDoc(true)}
+              className="p-2 text-blue-500 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 flex-shrink-0 mb-0.5"
+              title="Send Invoice / Proposal"
+              data-ocid="messenger.share_doc.open_modal_button"
+            >
+              <Briefcase className="w-4 h-4" />
+            </button>
             <input
               ref={fileInputRef}
               type="file"
@@ -347,6 +989,24 @@ export default function ChatArea({
           </div>
         )}
       </div>
+
+      {/* Share Activity Modal */}
+      <ShareActivityModal
+        open={showShareActivity}
+        onClose={() => setShowShareActivity(false)}
+        onSend={(payload) => {
+          onSendTaskRequest(payload);
+        }}
+      />
+
+      {/* Share Business Doc Modal */}
+      <ShareBusinessDocModal
+        open={showShareDoc}
+        onClose={() => setShowShareDoc(false)}
+        onSend={(payload) => {
+          onSendBusinessDoc(payload);
+        }}
+      />
     </div>
   );
 }

@@ -28,12 +28,33 @@ const NAV_ITEMS: Array<{
   key: PageKey;
   label: string;
   icon: React.ElementType;
+  color: string;
 }> = [
-  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { key: "messenger", label: "Messenger", icon: MessageSquare },
-  { key: "activities", label: "5W Activities", icon: CheckSquare },
-  { key: "business", label: "Business Suite", icon: Briefcase },
-  { key: "ai", label: "AI Assistant", icon: Bot },
+  {
+    key: "dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    color: "text-amber-400",
+  },
+  {
+    key: "messenger",
+    label: "Messenger",
+    icon: MessageSquare,
+    color: "text-blue-400",
+  },
+  {
+    key: "activities",
+    label: "5W Activities",
+    icon: CheckSquare,
+    color: "text-emerald-400",
+  },
+  {
+    key: "business",
+    label: "Business Suite",
+    icon: Briefcase,
+    color: "text-amber-400",
+  },
+  { key: "ai", label: "AI Assistant", icon: Bot, color: "text-purple-400" },
 ];
 
 function Sidebar({
@@ -60,20 +81,27 @@ function Sidebar({
     : "U";
 
   return (
-    <div className="h-full flex flex-col bg-sidebar text-sidebar-foreground">
+    <div
+      className="h-full flex flex-col"
+      style={{ backgroundColor: "#2a2a2a", color: "#f5f0e8" }}
+    >
       {/* Brand */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
-        <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-          <Compass className="w-5 h-5 text-primary-foreground" />
+      <div
+        className="flex items-center gap-3 px-5 py-5 border-b"
+        style={{ borderColor: "#3a3a3a" }}
+      >
+        <div className="w-9 h-9 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+          <Compass className="w-5 h-5 text-white" />
         </div>
-        <span className="font-display text-xl font-bold text-sidebar-foreground tracking-wide">
+        <span className="font-display text-xl font-bold tracking-wide text-amber-400">
           SAARATHI
         </span>
         {mobile && (
           <button
             type="button"
             onClick={onClose}
-            className="ml-auto text-sidebar-foreground/60 hover:text-sidebar-foreground"
+            className="ml-auto opacity-60 hover:opacity-100"
+            style={{ color: "#f5f0e8" }}
           >
             <X className="w-5 h-5" />
           </button>
@@ -93,14 +121,17 @@ function Sidebar({
                 onNav(item.key);
                 onClose?.();
               }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  ? "bg-amber-500 text-white shadow-sm"
+                  : "hover:bg-white/10"
               }`}
+              style={isActive ? {} : { color: "#c8c0b0" }}
               data-ocid={`nav.${item.key}.link`}
             >
-              <Icon className="w-4.5 h-4.5 flex-shrink-0" />
+              <Icon
+                className={`w-4.5 h-4.5 flex-shrink-0 ${isActive ? "text-white" : item.color}`}
+              />
               <span>{item.label}</span>
               {isActive && (
                 <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-60" />
@@ -110,21 +141,24 @@ function Sidebar({
         })}
       </nav>
 
-      <Separator className="bg-sidebar-border" />
+      <div className="h-px mx-3" style={{ backgroundColor: "#3a3a3a" }} />
 
       {/* User footer */}
       <div className="px-3 py-4">
-        <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
+        <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white/5 transition-colors">
           <Avatar className="w-8 h-8">
-            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
+            <AvatarFallback className="bg-amber-500 text-white text-xs font-bold">
               {initials}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">
+            <p
+              className="text-sm font-medium truncate"
+              style={{ color: "#f5f0e8" }}
+            >
               {profile?.displayName || profile?.username || "User"}
             </p>
-            <p className="text-xs text-sidebar-foreground/50 truncate">
+            <p className="text-xs truncate" style={{ color: "#7a7060" }}>
               {profile?.businessName || ""}
             </p>
           </div>
@@ -132,7 +166,8 @@ function Sidebar({
             variant="ghost"
             size="icon"
             onClick={onLogout}
-            className="w-7 h-7 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            className="w-7 h-7 hover:bg-white/10"
+            style={{ color: "#7a7060" }}
             data-ocid="nav.logout.button"
             title="Logout"
           >
@@ -160,7 +195,7 @@ export default function AppLayout() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-60 flex-col flex-shrink-0 border-r border-sidebar-border">
+      <aside className="hidden md:flex w-60 flex-col flex-shrink-0">
         <Sidebar active={activePage} onNav={setActivePage} onLogout={logout} />
       </aside>
 

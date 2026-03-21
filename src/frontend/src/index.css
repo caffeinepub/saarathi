@@ -23,58 +23,58 @@
     --radius: 0.5rem;
 
     /* Warm off-white background */
-    --background: 0.98 0.008 80;
-    --foreground: 0.18 0.03 258;
+    --background: 0.97 0.01 75;
+    --foreground: 0.2 0.01 60;
 
-    /* Cards */
-    --card: 1 0 0;
-    --card-foreground: 0.18 0.03 258;
+    /* Cards - clean white with warm tint */
+    --card: 0.99 0.005 75;
+    --card-foreground: 0.2 0.01 60;
 
-    /* Popover */
-    --popover: 1 0 0;
-    --popover-foreground: 0.18 0.03 258;
+    /* Popover - solid white */
+    --popover: 0.99 0.005 75;
+    --popover-foreground: 0.2 0.01 60;
 
-    /* Saffron/amber primary */
-    --primary: 0.68 0.18 52;
+    /* Saffron primary */
+    --primary: 0.65 0.19 52;
     --primary-foreground: 0.99 0 0;
 
     /* Secondary - warm light */
-    --secondary: 0.95 0.02 60;
-    --secondary-foreground: 0.28 0.04 258;
+    --secondary: 0.93 0.03 60;
+    --secondary-foreground: 0.28 0.04 60;
 
     /* Muted */
-    --muted: 0.95 0.01 80;
-    --muted-foreground: 0.52 0.03 258;
+    --muted: 0.93 0.01 75;
+    --muted-foreground: 0.5 0.03 60;
 
-    /* Accent */
-    --accent: 0.96 0.03 55;
-    --accent-foreground: 0.28 0.06 258;
+    /* Accent - saffron tint */
+    --accent: 0.94 0.04 55;
+    --accent-foreground: 0.3 0.08 55;
 
     /* Destructive */
     --destructive: 0.577 0.245 27.325;
     --destructive-foreground: 0.985 0 0;
 
     /* Borders */
-    --border: 0.88 0.02 60;
-    --input: 0.88 0.02 60;
-    --ring: 0.68 0.18 52;
+    --border: 0.87 0.02 60;
+    --input: 0.87 0.02 60;
+    --ring: 0.65 0.19 52;
 
     /* Charts */
-    --chart-1: 0.68 0.18 52;
+    --chart-1: 0.65 0.19 52;
     --chart-2: 0.55 0.17 258;
     --chart-3: 0.6 0.15 158;
     --chart-4: 0.75 0.16 75;
     --chart-5: 0.65 0.14 25;
 
-    /* Deep navy sidebar */
-    --sidebar: 0.2 0.06 258;
-    --sidebar-foreground: 0.95 0.01 80;
-    --sidebar-primary: 0.68 0.18 52;
-    --sidebar-primary-foreground: 0.2 0.06 258;
-    --sidebar-accent: 0.28 0.07 258;
-    --sidebar-accent-foreground: 0.95 0.01 80;
-    --sidebar-border: 0.28 0.05 258;
-    --sidebar-ring: 0.68 0.18 52;
+    /* Charcoal sidebar */
+    --sidebar: 0.22 0.008 60;
+    --sidebar-foreground: 0.95 0.01 75;
+    --sidebar-primary: 0.65 0.19 52;
+    --sidebar-primary-foreground: 0.99 0 0;
+    --sidebar-accent: 0.3 0.01 60;
+    --sidebar-accent-foreground: 0.95 0.01 75;
+    --sidebar-border: 0.3 0.01 60;
+    --sidebar-ring: 0.65 0.19 52;
   }
 
   * {

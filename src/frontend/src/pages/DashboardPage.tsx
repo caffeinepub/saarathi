@@ -23,10 +23,11 @@ const MODULE_CARDS = [
     title: "Messenger",
     description:
       "Team messaging with groups and subgroups. Keep your team aligned and communicate efficiently.",
-    badge: "Phase 2",
-    badgeVariant: "secondary" as const,
-    color: "text-blue-600",
-    bg: "bg-blue-50",
+    badge: "Active",
+    badgeColor: "bg-blue-100 text-blue-700 border-blue-200",
+    iconColor: "text-blue-600",
+    iconBg: "bg-blue-100",
+    borderColor: "border-l-blue-500",
   },
   {
     key: "activities" as PageKey,
@@ -34,10 +35,11 @@ const MODULE_CARDS = [
     title: "5W Activities",
     description:
       "Structured activity tracking using What, Who, When, Where, Why framework for clear accountability.",
-    badge: "Phase 2",
-    badgeVariant: "secondary" as const,
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
+    badge: "Active",
+    badgeColor: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    iconColor: "text-emerald-600",
+    iconBg: "bg-emerald-100",
+    borderColor: "border-l-emerald-500",
   },
   {
     key: "business" as PageKey,
@@ -45,10 +47,11 @@ const MODULE_CARDS = [
     title: "Business Suite",
     description:
       "GST-compliant invoices, estimates, and business proposals. Built for Indian businesses.",
-    badge: "Phase 3",
-    badgeVariant: "secondary" as const,
-    color: "text-amber-600",
-    bg: "bg-amber-50",
+    badge: "Coming Soon",
+    badgeColor: "bg-amber-100 text-amber-700 border-amber-200",
+    iconColor: "text-amber-600",
+    iconBg: "bg-amber-100",
+    borderColor: "border-l-amber-500",
   },
   {
     key: "ai" as PageKey,
@@ -56,18 +59,51 @@ const MODULE_CARDS = [
     title: "AI Assistant",
     description:
       "Smart productivity guidance, business templates, and contextual suggestions powered by AI.",
-    badge: "Phase 3",
-    badgeVariant: "secondary" as const,
-    color: "text-purple-600",
-    bg: "bg-purple-50",
+    badge: "Coming Soon",
+    badgeColor: "bg-purple-100 text-purple-700 border-purple-200",
+    iconColor: "text-purple-600",
+    iconBg: "bg-purple-100",
+    borderColor: "border-l-purple-500",
   },
 ];
 
 const STATS = [
-  { icon: Users, label: "Team Members", value: "—", hint: "Coming soon" },
-  { icon: CheckSquare, label: "Activities", value: "—", hint: "Coming soon" },
-  { icon: FileText, label: "Invoices", value: "—", hint: "Coming soon" },
-  { icon: TrendingUp, label: "This Month", value: "—", hint: "Coming soon" },
+  {
+    icon: Users,
+    label: "Team Members",
+    value: "—",
+    hint: "Coming soon",
+    accent: "bg-blue-500",
+    light: "bg-blue-50",
+    iconColor: "text-blue-600",
+  },
+  {
+    icon: CheckSquare,
+    label: "Activities",
+    value: "—",
+    hint: "Coming soon",
+    accent: "bg-emerald-500",
+    light: "bg-emerald-50",
+    iconColor: "text-emerald-600",
+  },
+  {
+    icon: FileText,
+    label: "Invoices",
+    value: "—",
+    hint: "Coming soon",
+    accent: "bg-amber-500",
+    light: "bg-amber-50",
+    iconColor: "text-amber-600",
+  },
+  {
+    icon: TrendingUp,
+    label: "This Month",
+    value: "—",
+    hint: "Coming soon",
+    accent: "bg-purple-500",
+    light: "bg-purple-50",
+    iconColor: "text-purple-600",
+  },
 ];
 
 export default function DashboardPage({
@@ -93,16 +129,22 @@ export default function DashboardPage({
         className="mb-8"
         data-ocid="dashboard.section"
       >
-        <p className="text-sm text-muted-foreground font-medium mb-1">
-          {greeting()},
-        </p>
-        <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
-          {profile?.displayName || profile?.username || "Welcome"}{" "}
-          <span className="text-primary">👋</span>
-        </h1>
-        {profile?.businessName && (
-          <p className="text-muted-foreground mt-1">{profile.businessName}</p>
-        )}
+        <div className="rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 px-6 py-6 text-white shadow-md">
+          <p className="text-amber-100 font-medium text-sm mb-1">
+            {greeting()},
+          </p>
+          <h1 className="font-display text-3xl md:text-4xl font-bold">
+            {profile?.displayName || profile?.username || "Welcome"} 👋
+          </h1>
+          {profile?.businessName && (
+            <p className="text-amber-100 mt-1 text-sm">
+              {profile.businessName}
+            </p>
+          )}
+          <p className="text-amber-50/80 text-xs mt-3">
+            Your complete business productivity platform
+          </p>
+        </div>
       </motion.div>
 
       {/* Stats row */}
@@ -117,20 +159,23 @@ export default function DashboardPage({
           return (
             <Card
               key={stat.label}
-              className="shadow-card border-border"
+              className="shadow-card border-border overflow-hidden"
               data-ocid={`dashboard.stat.item.${i + 1}`}
             >
+              <div className={`h-1 w-full ${stat.accent}`} />
               <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon className="w-4 h-4 text-primary" />
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {stat.label}
-                  </span>
+                <div
+                  className={`w-8 h-8 rounded-lg ${stat.light} flex items-center justify-center mb-2`}
+                >
+                  <Icon className={`w-4 h-4 ${stat.iconColor}`} />
                 </div>
                 <div className="text-2xl font-bold text-foreground">
                   {stat.value}
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
+                <div className="text-xs font-medium text-muted-foreground mt-0.5">
+                  {stat.label}
+                </div>
+                <div className="text-[11px] text-muted-foreground/60 mt-0.5">
                   {stat.hint}
                 </div>
               </CardContent>
@@ -144,14 +189,17 @@ export default function DashboardPage({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, delay: 0.2 }}
-        className="mb-4"
+        className="mb-4 flex items-center gap-3"
       >
-        <h2 className="font-display text-xl font-semibold text-foreground">
-          Platform Modules
-        </h2>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Your complete toolkit for business productivity
-        </p>
+        <div className="flex-1">
+          <h2 className="font-display text-xl font-semibold text-foreground">
+            Platform Modules
+          </h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Your complete toolkit for business productivity
+          </p>
+        </div>
+        <div className="h-px flex-1 bg-border hidden sm:block" />
       </motion.div>
 
       {/* Module cards */}
@@ -166,17 +214,21 @@ export default function DashboardPage({
               transition={{ duration: 0.4, delay: 0.1 * (i + 3) }}
               data-ocid={`dashboard.module.item.${i + 1}`}
             >
-              <Card className="shadow-card border-border hover:shadow-md transition-shadow duration-200 h-full">
+              <Card
+                className={`shadow-card border-border hover:shadow-md transition-shadow duration-200 h-full border-l-4 ${mod.borderColor}`}
+              >
                 <CardContent className="p-5 flex flex-col h-full">
                   <div className="flex items-start justify-between mb-3">
                     <div
-                      className={`w-10 h-10 rounded-xl ${mod.bg} flex items-center justify-center`}
+                      className={`w-10 h-10 rounded-xl ${mod.iconBg} flex items-center justify-center`}
                     >
-                      <Icon className={`w-5 h-5 ${mod.color}`} />
+                      <Icon className={`w-5 h-5 ${mod.iconColor}`} />
                     </div>
-                    <Badge variant={mod.badgeVariant} className="text-xs">
+                    <span
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${mod.badgeColor}`}
+                    >
                       {mod.badge}
-                    </Badge>
+                    </span>
                   </div>
                   <h3 className="font-semibold text-foreground mb-1.5">
                     {mod.title}

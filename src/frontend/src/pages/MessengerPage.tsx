@@ -1,5 +1,7 @@
+import { MessageSquarePlus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { dataStore } from "../store/dataStore";
 import ChatArea from "./messenger/ChatArea";
 import MessengerSidebar from "./messenger/MessengerSidebar";
 import {
@@ -14,10 +16,13 @@ import {
   makeSampleMessages,
 } from "./messenger/sampleData";
 import type {
+  BusinessDocPayload,
   ChatTarget,
   LocalGroup,
   LocalMessage,
   LocalUser,
+  TaskPayload,
+  TaskRequestStatus,
 } from "./messenger/types";
 import { chatKey } from "./messenger/types";
 
@@ -38,6 +43,11 @@ export default function MessengerPage() {
   );
   const [currentChat, setCurrentChat] = useState<ChatTarget | null>(null);
 
+  // Track which groups are expanded in sidebar
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+    new Set(["g1"]),
+  );
+
   // Modals
   const [showNewDM, setShowNewDM] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
@@ -56,6 +66,23 @@ export default function MessengerPage() {
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  // Persist groups so other modules (5W) can read them
+  useEffect(() => {
+    dataStore.setGroups(groups);
+  }, [groups]);
+
+  // Persist users so 5W WHO can read them
+  useEffect(() => {
+    dataStore.setUsers([
+      {
+        id: currentUserId,
+        displayName: currentDisplayName,
+        username: currentUserId,
+      },
+      ...SAMPLE_USERS,
+    ]);
+  }, [currentUserId, currentDisplayName]);
 
   const handleSelectChat = useCallback((target: ChatTarget) => {
     setCurrentChat(target);
@@ -101,6 +128,63 @@ export default function MessengerPage() {
     [currentChat, currentUserId, currentDisplayName],
   );
 
+  const handleSendTaskRequest = useCallback(
+    (payload: TaskPayload) => {
+      if (!currentChat) return;
+      const key = chatKey(currentChat);
+      const newMsg: LocalMessage = {
+        id: `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        senderId: currentUserId,
+        senderName: currentDisplayName,
+        content: `Task Request: ${payload.title}`,
+        msgType: "task_request",
+        timestamp: Date.now(),
+        taskPayload: payload,
+        taskStatus: "pending",
+      };
+      setMessages((prev) => ({
+        ...prev,
+        [key]: [...(prev[key] ?? []), newMsg],
+      }));
+    },
+    [currentChat, currentUserId, currentDisplayName],
+  );
+
+  const handleSendBusinessDoc = useCallback(
+    (payload: BusinessDocPayload) => {
+      if (!currentChat) return;
+      const key = chatKey(currentChat);
+      const newMsg: LocalMessage = {
+        id: `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        senderId: currentUserId,
+        senderName: currentDisplayName,
+        content: `${payload.docType === "invoice" ? "Invoice" : payload.docType === "estimate" ? "Estimate" : "Proposal"} ${payload.docNumber}`,
+        msgType: "business_doc",
+        timestamp: Date.now(),
+        businessDocPayload: payload,
+      };
+      setMessages((prev) => ({
+        ...prev,
+        [key]: [...(prev[key] ?? []), newMsg],
+      }));
+    },
+    [currentChat, currentUserId, currentDisplayName],
+  );
+
+  const handleUpdateTaskStatus = useCallback(
+    (msgId: string, status: TaskRequestStatus) => {
+      if (!currentChat) return;
+      const key = chatKey(currentChat);
+      setMessages((prev) => ({
+        ...prev,
+        [key]: (prev[key] ?? []).map((m) =>
+          m.id === msgId ? { ...m, taskStatus: status } : m,
+        ),
+      }));
+    },
+    [currentChat],
+  );
+
   const handleStartDM = useCallback((user: LocalUser) => {
     setDmContacts((prev) =>
       prev.some((u) => u.id === user.id) ? prev : [...prev, user],
@@ -133,8 +217,9 @@ export default function MessengerPage() {
 
   const handleCreateSubgroup = useCallback(
     (parentId: string, name: string, description: string) => {
+      const newSubgroupId = `g_sub_${Date.now()}`;
       const newGroup: LocalGroup = {
-        id: `g_sub_${Date.now()}`,
+        id: newSubgroupId,
         name,
         description,
         creatorId: currentUserId,
@@ -144,9 +229,23 @@ export default function MessengerPage() {
         parentGroupId: parentId,
       };
       setGroups((prev) => [...prev, newGroup]);
+      setExpandedGroups((prev) => new Set([...prev, parentId]));
     },
     [currentUserId],
   );
+
+  const handleDeleteSubgroup = useCallback((subgroupId: string) => {
+    setGroups((prev) => prev.filter((g) => g.id !== subgroupId));
+    setCurrentChat((prev) => {
+      if (
+        prev?.type === "group" &&
+        (prev as { groupId: string }).groupId === subgroupId
+      ) {
+        return null;
+      }
+      return prev;
+    });
+  }, []);
 
   const handleUpdateGroup = useCallback(
     (
@@ -237,7 +336,10 @@ export default function MessengerPage() {
   const showChat = !isMobile || mobileShowChat;
 
   return (
-    <div className="h-full flex overflow-hidden" data-ocid="messenger.panel">
+    <div
+      className="h-full flex overflow-hidden relative"
+      data-ocid="messenger.panel"
+    >
       {/* Left sidebar */}
       {showSidebar && (
         <MessengerSidebar
@@ -249,6 +351,15 @@ export default function MessengerPage() {
           onNewGroup={() => setShowNewGroup(true)}
           onGroupSettings={handleOpenSettings}
           currentUserId={currentUserId}
+          expandedGroups={expandedGroups}
+          onToggleGroupExpand={(groupId) => {
+            setExpandedGroups((prev) => {
+              const next = new Set(prev);
+              if (next.has(groupId)) next.delete(groupId);
+              else next.add(groupId);
+              return next;
+            });
+          }}
         />
       )}
 
@@ -261,10 +372,27 @@ export default function MessengerPage() {
           currentUserId={currentUserId}
           currentDisplayName={currentDisplayName}
           onSendMessage={handleSendMessage}
+          onSendTaskRequest={handleSendTaskRequest}
+          onSendBusinessDoc={handleSendBusinessDoc}
+          onUpdateTaskStatus={handleUpdateTaskStatus}
           onOpenSettings={handleOpenSettings}
           onBack={handleBack}
           isMobile={isMobile}
         />
+      )}
+
+      {/* Floating New DM Button — visible only when sidebar is shown */}
+      {showSidebar && (
+        <button
+          type="button"
+          onClick={() => setShowNewDM(true)}
+          className="fixed bottom-6 left-52 z-40 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition-all hover:scale-105 active:scale-95"
+          data-ocid="messenger.new_dm.open_modal_button"
+          title="New Direct Message"
+        >
+          <MessageSquarePlus className="w-4 h-4" />
+          New DM
+        </button>
       )}
 
       {/* Modals */}
@@ -297,6 +425,7 @@ export default function MessengerPage() {
         group={settingsGroup}
         currentUserId={currentUserId}
         allUsers={allUsers}
+        allGroups={groups}
         onClose={() => {
           setShowGroupSettings(false);
           setSettingsGroupId(null);
@@ -306,11 +435,14 @@ export default function MessengerPage() {
         onRemoveMember={handleRemoveMember}
         onMakeAdmin={handleMakeAdmin}
         onRemoveAdmin={handleRemoveAdmin}
+        onDeleteSubgroup={handleDeleteSubgroup}
         onCreateSubgroup={() => {
-          if (settingsGroupId) {
-            setSubgroupParentId(settingsGroupId);
-            setShowGroupSettings(false);
-            setShowNewSubgroup(true);
+          const parentId = settingsGroupId;
+          setShowGroupSettings(false);
+          setSettingsGroupId(null);
+          if (parentId) {
+            setSubgroupParentId(parentId);
+            setTimeout(() => setShowNewSubgroup(true), 50);
           }
         }}
       />
