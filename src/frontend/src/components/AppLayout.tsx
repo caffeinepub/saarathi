@@ -1,9 +1,12 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
+  Bell,
   Bot,
   Briefcase,
+  CheckCircle,
   CheckSquare,
   ChevronRight,
   Compass,
@@ -12,9 +15,10 @@ import {
   Menu,
   MessageSquare,
   X,
+  XCircle,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import AIAssistantPage from "../pages/AIAssistantPage";
 import ActivitiesPage from "../pages/ActivitiesPage";
@@ -56,6 +60,156 @@ const NAV_ITEMS: Array<{
   },
   { key: "ai", label: "AI Assistant", icon: Bot, color: "text-purple-400" },
 ];
+
+interface Notification {
+  id: string;
+  title: string;
+  sender: string;
+  date: string;
+  read: boolean;
+  type: "task_request";
+}
+
+function useNotifications() {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    function load() {
+      try {
+        const raw = localStorage.getItem("saarathi_notifications");
+        if (raw) setNotifications(JSON.parse(raw));
+      } catch {}
+    }
+    load();
+    const interval = setInterval(load, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  function markAllRead() {
+    const updated = notifications.map((n) => ({ ...n, read: true }));
+    setNotifications(updated);
+    localStorage.setItem("saarathi_notifications", JSON.stringify(updated));
+  }
+
+  function dismiss(id: string, accepted: boolean) {
+    const updated = notifications.map((n) =>
+      n.id === id ? { ...n, read: true, accepted } : n,
+    );
+    setNotifications(updated);
+    localStorage.setItem("saarathi_notifications", JSON.stringify(updated));
+  }
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+  return { notifications, unreadCount, markAllRead, dismiss };
+}
+
+function NotificationPanel({
+  notifications,
+  onMarkAllRead,
+  onDismiss,
+  onClose,
+}: {
+  notifications: Notification[];
+  onMarkAllRead: () => void;
+  onDismiss: (id: string, accepted: boolean) => void;
+  onClose: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -8, scale: 0.97 }}
+      transition={{ duration: 0.15 }}
+      className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-xl border border-amber-100 z-50 overflow-hidden"
+      data-ocid="notifications.popover"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-amber-500">
+        <div className="flex items-center gap-2">
+          <Bell className="w-4 h-4 text-white" />
+          <span className="font-semibold text-white text-sm">
+            Task Requests
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="text-amber-100 hover:text-white text-xs font-medium"
+            onClick={onMarkAllRead}
+            data-ocid="notifications.button"
+          >
+            Mark all read
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-amber-100 hover:text-white"
+            data-ocid="notifications.close_button"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <ScrollArea className="max-h-72">
+        {notifications.length === 0 ? (
+          <div
+            className="py-10 text-center"
+            data-ocid="notifications.empty_state"
+          >
+            <p className="text-sm text-muted-foreground">No task requests</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-stone-50">
+            {notifications.map((n) => (
+              <div
+                key={n.id}
+                className={`p-3 transition-colors ${
+                  n.read ? "bg-white" : "bg-amber-50/60"
+                }`}
+                data-ocid="notifications.item.1"
+              >
+                <div className="flex items-start gap-2 mb-2">
+                  {!n.read && (
+                    <span className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-stone-800 leading-tight">
+                      {n.title}
+                    </p>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      From {n.sender} · {n.date}
+                    </p>
+                  </div>
+                </div>
+                {!n.read && (
+                  <div className="flex gap-2 ml-4">
+                    <button
+                      type="button"
+                      onClick={() => onDismiss(n.id, true)}
+                      className="flex-1 flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors"
+                      data-ocid="notifications.confirm_button"
+                    >
+                      <CheckCircle className="w-3 h-3" /> Accept
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDismiss(n.id, false)}
+                      className="flex-1 flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors"
+                      data-ocid="notifications.delete_button"
+                    >
+                      <XCircle className="w-3 h-3" /> Deny
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </ScrollArea>
+    </motion.div>
+  );
+}
 
 function Sidebar({
   active,
@@ -182,7 +336,51 @@ function Sidebar({
 export default function AppLayout() {
   const [activePage, setActivePage] = useState<PageKey>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
   const { logout } = useAuth();
+  const { notifications, unreadCount, markAllRead, dismiss } =
+    useNotifications();
+
+  // Seed initial notifications on first load
+  useEffect(() => {
+    const existing = localStorage.getItem("saarathi_notifications");
+    if (!existing) {
+      const seed: Notification[] = [
+        {
+          id: "notif_1",
+          title: "GST Filing Review — Please review Q3 GST returns",
+          sender: "Ravi Kumar",
+          date: "Today",
+          read: false,
+          type: "task_request",
+        },
+        {
+          id: "notif_2",
+          title:
+            "Client Presentation — Prepare slides for Patel Industries demo",
+          sender: "Priya Sharma",
+          date: "Yesterday",
+          read: false,
+          type: "task_request",
+        },
+      ];
+      localStorage.setItem("saarathi_notifications", JSON.stringify(seed));
+    }
+  }, []);
+
+  // Close notifications on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setShowNotifications(false);
+      }
+    }
+    if (showNotifications) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showNotifications]);
 
   const PAGE_COMPONENTS: Record<PageKey, React.ReactElement> = {
     dashboard: <DashboardPage onNavigate={setActivePage} />,
@@ -247,6 +445,38 @@ export default function AppLayout() {
           <span className="text-sm font-medium text-muted-foreground hidden sm:block">
             {NAV_ITEMS.find((n) => n.key === activePage)?.label}
           </span>
+
+          {/* Notification Bell */}
+          <div className="relative" ref={notifRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowNotifications((prev) => !prev);
+                if (!showNotifications) markAllRead();
+              }}
+              className="relative w-9 h-9 rounded-lg flex items-center justify-center hover:bg-amber-50 transition-colors text-muted-foreground hover:text-amber-600"
+              data-ocid="notifications.open_modal_button"
+              title="Task notifications"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            <AnimatePresence>
+              {showNotifications && (
+                <NotificationPanel
+                  notifications={notifications}
+                  onMarkAllRead={markAllRead}
+                  onDismiss={dismiss}
+                  onClose={() => setShowNotifications(false)}
+                />
+              )}
+            </AnimatePresence>
+          </div>
         </header>
 
         {/* Page content */}

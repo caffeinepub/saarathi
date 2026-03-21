@@ -14,6 +14,7 @@ import {
   Briefcase,
   Calendar,
   CheckCircle,
+  Download,
   File,
   FileText,
   Loader2,
@@ -552,12 +553,31 @@ function BusinessDocCard({ msg }: { msg: LocalMessage }) {
             })}
           </span>
         </div>
-        <Badge
-          variant="outline"
-          className={`text-[10px] capitalize ${cfg.color}`}
-        >
-          {bp.status}
-        </Badge>
+        <div className="flex items-center justify-between">
+          <Badge
+            variant="outline"
+            className={`text-[10px] capitalize ${cfg.color}`}
+          >
+            {bp.status}
+          </Badge>
+          <button
+            type="button"
+            onClick={() => {
+              const html = `<html><head><title>${bp.docNumber}</title></head><body style="font-family:sans-serif;padding:24px;max-width:600px;margin:auto"><h2>${bp.docType.toUpperCase()} — ${bp.docNumber}</h2><p><strong>Client:</strong> ${bp.clientName}</p><p><strong>Date:</strong> ${bp.date}</p><p><strong>Grand Total:</strong> ₹${bp.grandTotal.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</p><p><strong>Status:</strong> ${bp.status}</p></body></html>`;
+              const win = window.open("", "_blank");
+              if (win) {
+                win.document.write(html);
+                win.document.close();
+                win.print();
+              }
+            }}
+            className="flex items-center gap-1 text-[10px] text-amber-600 hover:text-amber-800 font-medium px-2 py-0.5 rounded border border-amber-200 hover:bg-amber-50 transition-colors"
+            data-ocid="messenger.download_button"
+            title="Download / Print document"
+          >
+            <Download className="w-3 h-3" /> Download
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -674,11 +694,24 @@ function MessageBubble({
             <p className="whitespace-pre-wrap">{msg.content}</p>
           )}
           {msg.msgType === "image" && msg.blobUrl && (
-            <img
-              src={msg.blobUrl}
-              alt="Attachment"
-              className="max-w-[220px] rounded-lg"
-            />
+            <div className="relative group/img">
+              <img
+                src={msg.blobUrl}
+                alt="Attachment"
+                className="max-w-[220px] rounded-lg"
+              />
+              <a
+                href={msg.blobUrl}
+                download="image"
+                target="_blank"
+                rel="noreferrer"
+                className="absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-black/50 text-white flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
+                data-ocid="messenger.download_button"
+                title="Download image"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </a>
+            </div>
           )}
           {msg.msgType === "file" && (
             <div className="flex items-center gap-2.5">
@@ -689,7 +722,7 @@ function MessageBubble({
               >
                 <FileText className="w-5 h-5" />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="font-medium text-xs leading-tight">
                   {msg.fileName || "File"}
                 </p>
@@ -705,6 +738,17 @@ function MessageBubble({
                   </p>
                 )}
               </div>
+              {msg.blobUrl && (
+                <a
+                  href={msg.blobUrl}
+                  download={msg.fileName || "file"}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${isOwn ? "bg-white/20 hover:bg-white/30 text-white" : "bg-muted hover:bg-muted/80 text-muted-foreground"}`}
+                  data-ocid="messenger.download_button"
+                  title="Download file"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </a>
+              )}
             </div>
           )}
         </div>

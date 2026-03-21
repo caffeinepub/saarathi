@@ -36,6 +36,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import AIChatPanel from "../components/AIChatPanel";
 import { dataStore } from "../store/dataStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1025,8 +1026,7 @@ function DocFormDialog({
       key={docKey}
     >
       <DialogContent
-        className="max-w-3xl w-full max-h-[calc(100vh-80px)] overflow-y-auto bg-[#fdf8f0] border border-amber-200"
-        style={{ marginTop: "4rem" }}
+        className="max-w-5xl w-full max-h-[calc(100vh-6rem)] overflow-y-auto bg-[#fdf8f0] border border-amber-200"
         data-ocid="doc.dialog"
       >
         {/* Print-only header */}
@@ -1302,62 +1302,80 @@ function DocFormDialog({
           </div>
 
           {/* Line Items */}
-          <div className="p-4 bg-white rounded-xl border border-amber-100">
-            <div className="flex items-center justify-between mb-3">
-              <Label className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">
+          <div className="bg-white rounded-xl border border-amber-100 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 bg-stone-800 text-white">
+              <span className="text-xs font-bold uppercase tracking-widest text-stone-200">
                 Line Items
-              </Label>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-amber-300 text-amber-700 hover:bg-amber-50 text-xs"
-                onClick={addLineItem}
-                data-ocid="doc.button"
-              >
-                <Plus className="w-3 h-3 mr-1" /> Add Row
-              </Button>
+              </span>
+              <span className="text-xs text-stone-400">
+                {doc.lineItems.length} item
+                {doc.lineItems.length !== 1 ? "s" : ""}
+              </span>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-xs" style={{ minWidth: "640px" }}>
                 <thead>
-                  <tr className="border-b border-amber-100 text-muted-foreground">
-                    <th className="text-left pb-2 pr-2 font-medium">
+                  <tr className="bg-stone-700 text-white">
+                    <th
+                      className="text-left py-2.5 px-3 font-semibold uppercase tracking-wide text-[10px] text-stone-200"
+                      style={{ minWidth: "160px" }}
+                    >
                       Product / Description
                     </th>
-                    <th className="text-left pb-2 pr-2 font-medium w-20">
+                    <th
+                      className="text-left py-2.5 px-2 font-semibold uppercase tracking-wide text-[10px] text-stone-200"
+                      style={{ width: "80px" }}
+                    >
                       HSN/SAC
                     </th>
-                    <th className="text-center pb-2 pr-2 font-medium w-12">
+                    <th
+                      className="text-center py-2.5 px-2 font-semibold uppercase tracking-wide text-[10px] text-stone-200"
+                      style={{ width: "70px" }}
+                    >
                       Qty
                     </th>
-                    <th className="text-left pb-2 pr-2 font-medium w-16">
+                    <th
+                      className="text-left py-2.5 px-2 font-semibold uppercase tracking-wide text-[10px] text-stone-200"
+                      style={{ width: "70px" }}
+                    >
                       Unit
                     </th>
-                    <th className="text-right pb-2 pr-2 font-medium w-20">
-                      Rate
+                    <th
+                      className="text-right py-2.5 px-2 font-semibold uppercase tracking-wide text-[10px] text-stone-200"
+                      style={{ width: "90px" }}
+                    >
+                      Rate (₹)
                     </th>
-                    <th className="text-center pb-2 pr-2 font-medium w-16">
+                    <th
+                      className="text-center py-2.5 px-2 font-semibold uppercase tracking-wide text-[10px] text-stone-200"
+                      style={{ width: "70px" }}
+                    >
                       GST%
                     </th>
-                    <th className="text-right pb-2 font-medium w-20">Amount</th>
-                    <th className="w-6" />
+                    <th
+                      className="text-right py-2.5 px-3 font-semibold uppercase tracking-wide text-[10px] text-stone-200"
+                      style={{ width: "90px" }}
+                    >
+                      Amount (₹)
+                    </th>
+                    <th style={{ width: "40px" }} />
                   </tr>
                 </thead>
                 <tbody>
                   {doc.lineItems.map((li, idx) => (
                     <tr
                       key={li.id}
-                      className="border-b border-amber-50"
+                      className={`border-b border-stone-100 ${idx % 2 === 0 ? "bg-white" : "bg-stone-50/40"}`}
                       data-ocid={`doc.row.${idx + 1}`}
                     >
-                      <td className="py-1.5 pr-2">
+                      <td className="py-2 px-3">
                         <Select
                           value={li.productId}
                           onValueChange={(v) => applyProduct(li.id, v)}
                         >
                           <SelectTrigger
-                            className="h-7 text-xs bg-white mb-1"
+                            className="h-7 text-xs bg-white border border-stone-200 rounded mb-1"
                             data-ocid="doc.select"
                           >
                             <SelectValue placeholder="Select product" />
@@ -1371,7 +1389,7 @@ function DocFormDialog({
                           </SelectContent>
                         </Select>
                         <Input
-                          className="h-7 text-xs bg-white"
+                          className="h-7 text-xs bg-white border border-stone-200 rounded"
                           placeholder="Description"
                           value={li.description}
                           onChange={(e) =>
@@ -1380,9 +1398,9 @@ function DocFormDialog({
                           data-ocid="doc.input"
                         />
                       </td>
-                      <td className="py-1.5 pr-2">
+                      <td className="py-2 px-2">
                         <Input
-                          className="h-7 text-xs bg-white font-mono"
+                          className="h-7 text-xs bg-white font-mono border border-stone-200 rounded"
                           value={li.hsnSac}
                           onChange={(e) =>
                             updateLineItem(li.id, "hsnSac", e.target.value)
@@ -1390,10 +1408,10 @@ function DocFormDialog({
                           data-ocid="doc.input"
                         />
                       </td>
-                      <td className="py-1.5 pr-2">
+                      <td className="py-2 px-2">
                         <Input
                           type="number"
-                          className="h-7 text-xs bg-white text-center"
+                          className="h-7 text-xs bg-white text-center border border-stone-200 rounded"
                           value={li.qty}
                           onChange={(e) =>
                             updateLineItem(li.id, "qty", Number(e.target.value))
@@ -1401,7 +1419,7 @@ function DocFormDialog({
                           data-ocid="doc.input"
                         />
                       </td>
-                      <td className="py-1.5 pr-2">
+                      <td className="py-2 px-2">
                         <Select
                           value={li.unit}
                           onValueChange={(v) =>
@@ -1409,7 +1427,7 @@ function DocFormDialog({
                           }
                         >
                           <SelectTrigger
-                            className="h-7 text-xs bg-white"
+                            className="h-7 text-xs bg-white border border-stone-200 rounded"
                             data-ocid="doc.select"
                           >
                             <SelectValue />
@@ -1423,10 +1441,10 @@ function DocFormDialog({
                           </SelectContent>
                         </Select>
                       </td>
-                      <td className="py-1.5 pr-2">
+                      <td className="py-2 px-2">
                         <Input
                           type="number"
-                          className="h-7 text-xs bg-white text-right"
+                          className="h-7 text-xs bg-white text-right border border-stone-200 rounded"
                           value={li.rate}
                           onChange={(e) =>
                             updateLineItem(
@@ -1438,7 +1456,7 @@ function DocFormDialog({
                           data-ocid="doc.input"
                         />
                       </td>
-                      <td className="py-1.5 pr-2">
+                      <td className="py-2 px-2">
                         <Select
                           value={String(li.gstRate)}
                           onValueChange={(v) =>
@@ -1446,7 +1464,7 @@ function DocFormDialog({
                           }
                         >
                           <SelectTrigger
-                            className="h-7 text-xs bg-white"
+                            className="h-7 text-xs bg-white border border-stone-200 rounded"
                             data-ocid="doc.select"
                           >
                             <SelectValue />
@@ -1460,18 +1478,18 @@ function DocFormDialog({
                           </SelectContent>
                         </Select>
                       </td>
-                      <td className="py-1.5 text-right font-medium text-foreground">
+                      <td className="py-2 px-3 text-right font-bold text-amber-700">
                         {formatINR(calcLineAmount(li))}
                       </td>
-                      <td className="py-1.5 pl-1">
+                      <td className="py-2 px-2 text-center">
                         {doc.lineItems.length > 1 && (
                           <button
                             type="button"
                             onClick={() => removeLineItem(li.id)}
-                            className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-100 text-red-400 hover:text-red-600 transition-colors"
+                            className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-100 text-stone-300 hover:text-red-600 transition-colors mx-auto"
                             data-ocid={`doc.delete_button.${idx + 1}`}
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </td>
@@ -1481,8 +1499,18 @@ function DocFormDialog({
               </table>
             </div>
 
+            {/* Add Item Button */}
+            <button
+              type="button"
+              onClick={addLineItem}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-amber-600 border-t border-dashed border-amber-300 hover:bg-amber-50 transition-colors"
+              data-ocid="doc.button"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Item
+            </button>
+
             {/* Totals */}
-            <div className="mt-4 pt-3 border-t border-amber-100">
+            <div className="mt-0 pt-4 px-4 pb-4 border-t border-amber-100 bg-amber-50/30">
               <div className="ml-auto max-w-xs space-y-1.5 text-sm">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
@@ -2728,6 +2756,7 @@ export default function BusinessSuitePage() {
           />
         )}
       </div>
+      <AIChatPanel />
     </>
   );
 }

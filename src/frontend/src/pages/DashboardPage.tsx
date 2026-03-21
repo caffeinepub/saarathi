@@ -12,7 +12,11 @@ import {
   Users,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useEffect, useState } from "react";
+import AIChatPanel from "../components/AIChatPanel";
 import { useAuth } from "../context/AuthContext";
+import { dataStore } from "../store/dataStore";
+import { SAMPLE_USERS } from "./messenger/sampleData";
 
 type PageKey = "dashboard" | "messenger" | "activities" | "business" | "ai";
 
@@ -47,8 +51,8 @@ const MODULE_CARDS = [
     title: "Business Suite",
     description:
       "GST-compliant invoices, estimates, and business proposals. Built for Indian businesses.",
-    badge: "Coming Soon",
-    badgeColor: "bg-amber-100 text-amber-700 border-amber-200",
+    badge: "Active",
+    badgeColor: "bg-emerald-100 text-emerald-700 border-emerald-200",
     iconColor: "text-amber-600",
     iconBg: "bg-amber-100",
     borderColor: "border-l-amber-500",
@@ -59,7 +63,7 @@ const MODULE_CARDS = [
     title: "AI Assistant",
     description:
       "Smart productivity guidance, business templates, and contextual suggestions powered by AI.",
-    badge: "Coming Soon",
+    badge: "Active",
     badgeColor: "bg-purple-100 text-purple-700 border-purple-200",
     iconColor: "text-purple-600",
     iconBg: "bg-purple-100",
@@ -67,44 +71,98 @@ const MODULE_CARDS = [
   },
 ];
 
-const STATS = [
-  {
-    icon: Users,
-    label: "Team Members",
-    value: "—",
-    hint: "Coming soon",
-    accent: "bg-blue-500",
-    light: "bg-blue-50",
-    iconColor: "text-blue-600",
-  },
-  {
-    icon: CheckSquare,
-    label: "Activities",
-    value: "—",
-    hint: "Coming soon",
-    accent: "bg-emerald-500",
-    light: "bg-emerald-50",
-    iconColor: "text-emerald-600",
-  },
-  {
-    icon: FileText,
-    label: "Invoices",
-    value: "—",
-    hint: "Coming soon",
-    accent: "bg-amber-500",
-    light: "bg-amber-50",
-    iconColor: "text-amber-600",
-  },
-  {
-    icon: TrendingUp,
-    label: "This Month",
-    value: "—",
-    hint: "Coming soon",
-    accent: "bg-purple-500",
-    light: "bg-purple-50",
-    iconColor: "text-purple-600",
-  },
-];
+type Activity = {
+  status?: string;
+  dateTime?: string;
+  createdAt?: number;
+};
+
+type Doc = {
+  type?: string;
+  total?: number;
+  grandTotal?: number;
+};
+
+function computeStats() {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const monthName = now.toLocaleString("default", {
+    month: "long",
+    year: "numeric",
+  });
+
+  // Team members
+  const users = dataStore.getUsers(SAMPLE_USERS);
+  const teamCount = users.length;
+
+  // Activities
+  const activities = dataStore.getActivities<Activity>();
+  const activityCount = activities.length;
+  const pendingCount = activities.filter((a) => a.status === "pending").length;
+
+  // Invoices
+  const docs = dataStore.getDocs<Doc>();
+  const invoices = docs.filter((d) => d.type === "invoice");
+  const invoiceCount = invoices.length;
+  const invoiceTotal = invoices.reduce(
+    (sum, d) => sum + (d.grandTotal ?? d.total ?? 0),
+    0,
+  );
+
+  // This month activities
+  const thisMonthCount = activities.filter((a) => {
+    const dt = a.dateTime
+      ? new Date(a.dateTime)
+      : a.createdAt
+        ? new Date(a.createdAt)
+        : null;
+    if (!dt) return false;
+    return dt.getMonth() === currentMonth && dt.getFullYear() === currentYear;
+  }).length;
+
+  return [
+    {
+      icon: Users,
+      label: "Team Members",
+      value: String(teamCount),
+      hint: `${teamCount} contact${teamCount !== 1 ? "s" : ""}`,
+      accent: "bg-blue-500",
+      light: "bg-blue-50",
+      iconColor: "text-blue-600",
+    },
+    {
+      icon: CheckSquare,
+      label: "Activities",
+      value: String(activityCount),
+      hint: activityCount > 0 ? `${pendingCount} pending` : "No activities yet",
+      accent: "bg-emerald-500",
+      light: "bg-emerald-50",
+      iconColor: "text-emerald-600",
+    },
+    {
+      icon: FileText,
+      label: "Invoices",
+      value: String(invoiceCount),
+      hint:
+        invoiceTotal > 0
+          ? `₹${invoiceTotal.toLocaleString("en-IN")} total`
+          : `${invoiceCount} document${invoiceCount !== 1 ? "s" : ""}`,
+      accent: "bg-amber-500",
+      light: "bg-amber-50",
+      iconColor: "text-amber-600",
+    },
+    {
+      icon: TrendingUp,
+      label: "This Month",
+      value: String(thisMonthCount),
+      hint: monthName,
+      accent: "bg-purple-500",
+      light: "bg-purple-50",
+      iconColor: "text-purple-600",
+    },
+  ];
+}
 
 export default function DashboardPage({
   onNavigate,
@@ -112,6 +170,16 @@ export default function DashboardPage({
   onNavigate: (key: PageKey) => void;
 }) {
   const { profile } = useAuth();
+  const [stats, setStats] = useState(computeStats);
+
+  useEffect(() => {
+    const handler = () => setStats(computeStats());
+    window.addEventListener("storage", handler);
+    // Also recompute on mount in case localStorage was updated in same tab
+    setStats(computeStats());
+    return () => window.removeEventListener("storage", handler);
+  }, []);
+
   const greeting = () => {
     const h = new Date().getHours();
     if (h < 12) return "Good morning";
@@ -154,7 +222,7 @@ export default function DashboardPage({
         transition={{ duration: 0.4, delay: 0.1 }}
         className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
       >
-        {STATS.map((stat, i) => {
+        {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
             <Card
@@ -266,6 +334,7 @@ export default function DashboardPage({
           </a>
         </p>
       </div>
+      <AIChatPanel />
     </div>
   );
 }

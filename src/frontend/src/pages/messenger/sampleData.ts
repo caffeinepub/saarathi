@@ -6,6 +6,7 @@ export const SAMPLE_USERS: LocalUser[] = [
   { id: "meena", displayName: "Meena Iyer", username: "meena.iyer" },
   { id: "ankit", displayName: "Ankit Verma", username: "ankit.verma" },
   { id: "sunita", displayName: "Sunita Patel", username: "sunita.patel" },
+  { id: "ravi", displayName: "Ravi Kumar", username: "ravi.kumar" },
 ];
 
 export const AVATAR_COLORS = [
@@ -126,6 +127,31 @@ export function makeSampleMessages(
         msgType: "text",
         timestamp: m(45),
       },
+      // Received task request in Sales Team from Ravi Kumar
+      {
+        id: "m_task_1",
+        senderId: "ravi",
+        senderName: "Ravi Kumar",
+        content: "Task Request: GST Filing Review",
+        msgType: "task_request",
+        timestamp: m(20),
+        taskPayload: {
+          activityId: "ext_1",
+          title: "GST Filing Review",
+          taskType: "groupTask",
+          assignees: [currentDisplayName],
+          dateTime: new Date(now + 2 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .slice(0, 16),
+          deadline: new Date(now + 3 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .slice(0, 10),
+          location: "Accounts Office",
+          notes:
+            "Please review Q3 GST returns and highlight any discrepancies before filing deadline this Friday.",
+        },
+        taskStatus: "pending",
+      },
     ],
     "group_g1-sub1": [
       {
@@ -229,6 +255,31 @@ export function makeSampleMessages(
         msgType: "text",
         timestamp: h(1),
       },
+      // Received task request in DM from Priya
+      {
+        id: "d_task_1",
+        senderId: "priya",
+        senderName: "Priya Sharma",
+        content: "Task Request: Client Presentation",
+        msgType: "task_request",
+        timestamp: m(10),
+        taskPayload: {
+          activityId: "ext_2",
+          title: "Client Presentation",
+          taskType: "meeting",
+          assignees: [currentDisplayName],
+          dateTime: new Date(now + 1 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .slice(0, 16),
+          deadline: new Date(now + 1 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .slice(0, 10),
+          location: "Conference Room A",
+          notes:
+            "Prepare slides for Patel Industries demo tomorrow. Include product roadmap and pricing options.",
+        },
+        taskStatus: "pending",
+      },
     ],
     dm_rajesh: [
       {
@@ -248,6 +299,17 @@ export function makeSampleMessages(
           "I'll update the estimate and share by EOD. Discount is applicable for orders above ₹2L.",
         msgType: "text",
         timestamp: h(2),
+      },
+    ],
+    dm_ravi: [
+      {
+        id: "rv1",
+        senderId: "ravi",
+        senderName: "Ravi Kumar",
+        content:
+          "Hey, I've sent you a GST filing task request in the Sales Team group. Please accept at your earliest.",
+        msgType: "text",
+        timestamp: m(25),
       },
     ],
   };

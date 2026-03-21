@@ -36,6 +36,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import AIChatPanel from "../components/AIChatPanel";
 import { dataStore } from "../store/dataStore";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -743,6 +744,13 @@ function SendToMessengerDialog({
   );
 }
 
+// ─── Task Type dot colors for calendar
+const TASK_TYPE_DOT: Record<TaskType, string> = {
+  meeting: "bg-blue-500",
+  groupTask: "bg-green-500",
+  other: "bg-amber-400",
+};
+
 // ─── Scheduler / Calendar View ────────────────────────────────────────────────
 function SchedulerTab({ activities }: { activities: Activity[] }) {
   const today = new Date();
@@ -756,7 +764,10 @@ function SchedulerTab({ activities }: { activities: Activity[] }) {
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
   const monthName = new Date(currentYear, currentMonth).toLocaleString(
     "en-IN",
-    { month: "long", year: "numeric" },
+    {
+      month: "long",
+      year: "numeric",
+    },
   );
 
   function actsByDay(day: number) {
@@ -772,14 +783,13 @@ function SchedulerTab({ activities }: { activities: Activity[] }) {
 
   const selectedActs = selectedDay ? actsByDay(selectedDay) : [];
 
-  // This week agenda
+  // This week
   const startOfWeek = new Date(today);
   startOfWeek.setDate(today.getDate() - today.getDay());
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 6);
-  const thisWeekActs = activities.filter((a) => {
-    const d = new Date(a.dateTime);
-    return d >= startOfWeek && d <= endOfWeek;
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate() + i);
+    return d;
   });
 
   function prevMonth() {
@@ -795,181 +805,267 @@ function SchedulerTab({ activities }: { activities: Activity[] }) {
     } else setCurrentMonth((m) => m + 1);
   }
 
-  const STATUS_DOT: Record<ActivityStatus, string> = {
-    pending: "bg-amber-400",
-    inProgress: "bg-blue-400",
-    completed: "bg-green-400",
-  };
+  const selectedDateLabel = selectedDay
+    ? new Date(currentYear, currentMonth, selectedDay).toLocaleDateString(
+        "en-IN",
+        {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+        },
+      )
+    : null;
 
   return (
-    <div className="space-y-6">
-      {/* Calendar */}
-      <div className="bg-white rounded-2xl border border-amber-100 shadow-card overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 bg-amber-50 border-b border-amber-100">
-          <button
-            type="button"
-            onClick={prevMonth}
-            className="w-8 h-8 rounded-lg hover:bg-amber-200 flex items-center justify-center transition-colors"
-            data-ocid="activity.pagination_prev"
-          >
-            <ChevronLeft className="w-4 h-4 text-amber-700" />
-          </button>
-          <span className="font-semibold text-amber-800">{monthName}</span>
-          <button
-            type="button"
-            onClick={nextMonth}
-            className="w-8 h-8 rounded-lg hover:bg-amber-200 flex items-center justify-center transition-colors"
-            data-ocid="activity.pagination_next"
-          >
-            <ChevronRight className="w-4 h-4 text-amber-700" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-7 text-center text-xs font-semibold text-muted-foreground bg-amber-50/40 border-b border-amber-100">
-          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-            <div key={d} className="py-2">
-              {d}
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-7">
-          {["a", "b", "c", "d", "e", "f"].slice(0, firstDay).map((k) => (
-            <div key={`pad-${k}`} />
-          ))}
-          {Array.from({ length: daysInMonth }).map((_, i) => {
-            const day = i + 1;
-            const dayActs = actsByDay(day);
-            const isToday =
-              day === today.getDate() &&
-              currentMonth === today.getMonth() &&
-              currentYear === today.getFullYear();
-            const isSelected = day === selectedDay;
-            return (
-              <button
-                type="button"
-                key={day}
-                onClick={() => setSelectedDay(day)}
-                className={`py-2 px-1 text-sm flex flex-col items-center gap-0.5 border-b border-r border-border/30 hover:bg-amber-50 transition-colors ${
-                  isSelected ? "bg-amber-100" : ""
-                }`}
-                data-ocid="activity.button"
-              >
-                <span
-                  className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium ${
-                    isToday
-                      ? "bg-amber-500 text-white"
-                      : isSelected
-                        ? "text-amber-700 font-bold"
-                        : "text-foreground"
-                  }`}
-                >
-                  {day}
-                </span>
-                <div className="flex gap-0.5 flex-wrap justify-center">
-                  {dayActs.slice(0, 3).map((a) => (
-                    <span
-                      key={a.id}
-                      className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[a.status]}`}
-                    />
-                  ))}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Selected Day Panel */}
-      {selectedDay && (
-        <div className="bg-white rounded-xl border border-amber-100 p-4 shadow-card">
-          <h3 className="font-semibold text-foreground mb-3">
-            {new Date(
-              currentYear,
-              currentMonth,
-              selectedDay,
-            ).toLocaleDateString("en-IN", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            })}
-          </h3>
-          {selectedActs.length === 0 ? (
-            <p
-              className="text-sm text-muted-foreground"
-              data-ocid="activity.empty_state"
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* Left: Calendar + This Week */}
+      <div className="lg:col-span-2 space-y-5">
+        {/* Calendar Card */}
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+          {/* Month Nav */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
+            <button
+              type="button"
+              onClick={prevMonth}
+              className="w-9 h-9 rounded-xl hover:bg-amber-50 flex items-center justify-center transition-colors text-stone-500 hover:text-amber-700"
+              data-ocid="activity.pagination_prev"
             >
-              No activities scheduled for this day.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {selectedActs.map((a) => (
-                <div
-                  key={a.id}
-                  className="flex items-start gap-3 p-3 rounded-lg bg-amber-50/60 border border-amber-100"
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="text-center">
+              <span className="font-bold text-lg text-stone-800">
+                {monthName}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={nextMonth}
+              className="w-9 h-9 rounded-xl hover:bg-amber-50 flex items-center justify-center transition-colors text-stone-500 hover:text-amber-700"
+              data-ocid="activity.pagination_next"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Day headers */}
+          <div className="grid grid-cols-7 border-b border-stone-100">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+              <div
+                key={d}
+                className="text-center text-xs font-semibold text-stone-400 py-2.5 uppercase tracking-wider"
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+
+          {/* Days grid */}
+          <div className="grid grid-cols-7 p-2 gap-1">
+            {Array.from({ length: firstDay }, (_, i) => String(i)).map((k) => (
+              <div key={`pad-${currentMonth}-${currentYear}-${k}`} />
+            ))}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const day = i + 1;
+              const dayActs = actsByDay(day);
+              const isToday =
+                day === today.getDate() &&
+                currentMonth === today.getMonth() &&
+                currentYear === today.getFullYear();
+              const isSelected = day === selectedDay;
+              return (
+                <button
+                  type="button"
+                  key={day}
+                  onClick={() => setSelectedDay(day)}
+                  className={`flex flex-col items-center py-1.5 px-1 rounded-xl transition-all hover:bg-amber-50 ${
+                    isSelected && !isToday ? "bg-amber-100" : ""
+                  }`}
+                  data-ocid="activity.button"
                 >
                   <span
-                    className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${STATUS_DOT[a.status]}`}
-                  />
-                  <div>
-                    <div className="font-medium text-sm">{a.title}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatTime(a.dateTime)} · {a.location || "No location"}
-                    </div>
+                    className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-semibold transition-all ${
+                      isToday
+                        ? "bg-amber-500 text-white shadow-md shadow-amber-200"
+                        : isSelected
+                          ? "bg-amber-200 text-amber-800"
+                          : "text-stone-700 hover:text-amber-700"
+                    }`}
+                  >
+                    {day}
+                  </span>
+                  <div className="flex gap-0.5 mt-1 h-2 items-center">
+                    {dayActs.slice(0, 3).map((a) => (
+                      <span
+                        key={a.id}
+                        className={`w-1.5 h-1.5 rounded-full ${TASK_TYPE_DOT[a.taskType]}`}
+                      />
+                    ))}
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                </button>
+              );
+            })}
+          </div>
 
-      {/* This Week Agenda */}
-      <div className="bg-white rounded-xl border border-amber-100 p-4 shadow-card">
-        <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-amber-500" /> This Week
-        </h3>
-        {thisWeekActs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No activities this week.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {thisWeekActs.map((a) => {
-              const sc = STATUS_CONFIG[a.status];
+          {/* Legend */}
+          <div className="flex items-center gap-4 px-4 py-2.5 border-t border-stone-100 bg-stone-50/50">
+            <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider">
+              Legend:
+            </span>
+            {(
+              [
+                ["meeting", "bg-blue-500", "Meeting"],
+                ["groupTask", "bg-green-500", "Group Task"],
+                ["other", "bg-amber-400", "Other"],
+              ] as const
+            ).map(([, color, label]) => (
+              <div key={label} className="flex items-center gap-1.5">
+                <span className={`w-2.5 h-2.5 rounded-full ${color}`} />
+                <span className="text-[10px] text-stone-500">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* This Week */}
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-stone-100 flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-amber-500" />
+            <h3 className="font-semibold text-stone-800 text-sm">This Week</h3>
+          </div>
+          <div className="grid grid-cols-7 divide-x divide-stone-100">
+            {weekDays.map((wd) => {
+              const wdActs = activities.filter((a) => {
+                const d = new Date(a.dateTime);
+                return (
+                  d.getDate() === wd.getDate() &&
+                  d.getMonth() === wd.getMonth() &&
+                  d.getFullYear() === wd.getFullYear()
+                );
+              });
+              const isWdToday = wd.toDateString() === today.toDateString();
               return (
                 <div
-                  key={a.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border/40 hover:bg-amber-50/50 transition-colors"
+                  key={wd.toISOString()}
+                  className={`p-2 min-h-[80px] ${isWdToday ? "bg-amber-50" : ""}`}
                 >
-                  <div className="text-center min-w-[40px]">
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(a.dateTime).toLocaleDateString("en-IN", {
-                        weekday: "short",
-                      })}
-                    </div>
-                    <div className="font-bold text-amber-600 text-sm">
-                      {new Date(a.dateTime).getDate()}
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">
-                      {a.title}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatTime(a.dateTime)}
-                    </div>
-                  </div>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full border ${sc.color}`}
+                  <div
+                    className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${isWdToday ? "text-amber-600" : "text-stone-400"}`}
                   >
-                    {sc.label}
-                  </span>
+                    {wd.toLocaleDateString("en-IN", { weekday: "short" })}
+                  </div>
+                  <div
+                    className={`text-xs font-bold mb-1.5 ${isWdToday ? "text-amber-700" : "text-stone-600"}`}
+                  >
+                    {wd.getDate()}
+                  </div>
+                  <div className="space-y-1">
+                    {wdActs.slice(0, 2).map((a) => (
+                      <div
+                        key={a.id}
+                        className={`text-[9px] font-medium px-1.5 py-0.5 rounded truncate ${
+                          a.taskType === "meeting"
+                            ? "bg-blue-100 text-blue-700"
+                            : a.taskType === "groupTask"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-amber-100 text-amber-700"
+                        }`}
+                        title={a.title}
+                      >
+                        {a.title}
+                      </div>
+                    ))}
+                    {wdActs.length > 2 && (
+                      <div className="text-[9px] text-stone-400">
+                        +{wdActs.length - 2} more
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
-        )}
+        </div>
+      </div>
+
+      {/* Right: Day Detail Panel */}
+      <div className="space-y-4">
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden sticky top-4">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-3">
+            <h3 className="font-semibold text-white text-sm">
+              {selectedDateLabel ?? "Select a day"}
+            </h3>
+            <p className="text-amber-100 text-xs mt-0.5">
+              {selectedActs.length}{" "}
+              {selectedActs.length === 1 ? "activity" : "activities"}
+            </p>
+          </div>
+
+          {/* Timeline */}
+          <div className="p-3">
+            {selectedActs.length === 0 ? (
+              <div
+                className="py-8 text-center"
+                data-ocid="activity.empty_state"
+              >
+                <Calendar className="w-8 h-8 text-stone-200 mx-auto mb-2" />
+                <p className="text-sm text-stone-400">No activities</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {selectedActs.map((a) => {
+                  const borderColor =
+                    a.taskType === "meeting"
+                      ? "border-blue-400"
+                      : a.taskType === "groupTask"
+                        ? "border-green-500"
+                        : "border-amber-400";
+                  const sc = STATUS_CONFIG[a.status];
+                  const StatusIcon = sc.icon;
+                  return (
+                    <div
+                      key={a.id}
+                      className={`p-3 rounded-xl border-l-4 ${borderColor} bg-stone-50 border border-stone-100`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="font-semibold text-sm text-stone-800 leading-tight">
+                          {a.title}
+                        </p>
+                        <span
+                          className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full border flex items-center gap-1 ${sc.color}`}
+                        >
+                          <StatusIcon className="w-2.5 h-2.5" />
+                          {sc.label}
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-500 font-medium">
+                        {formatTime(a.dateTime)}
+                      </p>
+                      {a.assignees.length > 0 && (
+                        <div className="flex items-center gap-1 mt-1.5">
+                          {a.assignees.slice(0, 3).map((name) => (
+                            <span
+                              key={name}
+                              className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[9px] font-bold flex items-center justify-center"
+                              title={name}
+                            >
+                              {name.charAt(0).toUpperCase()}
+                            </span>
+                          ))}
+                          {a.assignees.length > 3 && (
+                            <span className="text-[9px] text-stone-400">
+                              +{a.assignees.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1176,6 +1272,7 @@ export default function ActivitiesPage() {
         onClose={() => setMessengerTarget(null)}
         onSent={handleMessengerSent}
       />
+      <AIChatPanel />
     </div>
   );
 }

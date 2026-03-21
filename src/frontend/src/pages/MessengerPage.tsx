@@ -1,5 +1,6 @@
 import { MessageSquarePlus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import AIChatPanel from "../components/AIChatPanel";
 import { useAuth } from "../context/AuthContext";
 import { dataStore } from "../store/dataStore";
 import ChatArea from "./messenger/ChatArea";
@@ -37,6 +38,7 @@ export default function MessengerPage() {
   const [dmContacts, setDmContacts] = useState<LocalUser[]>(() => [
     SAMPLE_USERS[0],
     SAMPLE_USERS[1],
+    SAMPLE_USERS[5], // Ravi Kumar
   ]);
   const [messages, setMessages] = useState<Record<string, LocalMessage[]>>(() =>
     makeSampleMessages(currentUserId, currentDisplayName),
@@ -386,7 +388,7 @@ export default function MessengerPage() {
         <button
           type="button"
           onClick={() => setShowNewDM(true)}
-          className="fixed bottom-6 left-52 z-40 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition-all hover:scale-105 active:scale-95"
+          className="fixed bottom-6 left-4 z-40 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition-all hover:scale-105 active:scale-95"
           data-ocid="messenger.new_dm.open_modal_button"
           title="New Direct Message"
         >
@@ -446,6 +448,7 @@ export default function MessengerPage() {
           }
         }}
       />
+      <AIChatPanel />
     </div>
   );
 }
