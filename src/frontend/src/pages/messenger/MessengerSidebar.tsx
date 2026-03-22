@@ -23,9 +23,170 @@ interface Props {
   onNewDM: () => void;
   onNewGroup: () => void;
   onGroupSettings: (groupId: string) => void;
+  onNewSubgroup: (parentId: string) => void;
   currentUserId: string;
   expandedGroups: Set<string>;
   onToggleGroupExpand: (groupId: string) => void;
+}
+
+interface GroupTreeItemProps {
+  group: LocalGroup;
+  allGroups: LocalGroup[];
+  currentChat: ChatTarget | null;
+  onSelectChat: (target: ChatTarget) => void;
+  onGroupSettings: (groupId: string) => void;
+  onNewSubgroup: (parentId: string) => void;
+  currentUserId: string;
+  expandedGroups: Set<string>;
+  onToggleGroupExpand: (groupId: string) => void;
+  itemIndex: number;
+}
+
+function GroupTreeItem({
+  group,
+  allGroups,
+  currentChat,
+  onSelectChat,
+  onGroupSettings,
+  onNewSubgroup,
+  currentUserId,
+  expandedGroups,
+  onToggleGroupExpand,
+  itemIndex,
+}: GroupTreeItemProps) {
+  const children = allGroups.filter((g) => g.parentGroupId === group.id);
+  const isExpanded = expandedGroups.has(group.id);
+  const isAdmin = group.admins.includes(currentUserId);
+  const depth = group.depth ?? 0;
+  const canAddSubgroup = isAdmin && depth < 9;
+  const indentPx = depth * 12;
+
+  const target: ChatTarget = {
+    type: "group",
+    groupId: group.id,
+    name: group.name,
+  };
+  const active = currentChat ? chatKey(currentChat) === chatKey(target) : false;
+
+  return (
+    <div>
+      <div
+        className={`flex items-center gap-1 rounded-md transition-colors group ${
+          active ? "bg-amber-500" : "hover:bg-white/10"
+        }`}
+        style={{ paddingLeft: `${indentPx}px` }}
+      >
+        {/* Expand/collapse chevron */}
+        {children.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => onToggleGroupExpand(group.id)}
+            className={`pl-1.5 py-2 flex-shrink-0 ${
+              active
+                ? "text-white/70"
+                : "text-amber-400/60 hover:text-amber-400"
+            }`}
+          >
+            {isExpanded ? (
+              <ChevronDown className="w-3 h-3" />
+            ) : (
+              <ChevronRight className="w-3 h-3" />
+            )}
+          </button>
+        ) : (
+          <span className="pl-3" />
+        )}
+
+        {/* Chat select button */}
+        <button
+          type="button"
+          onClick={() => onSelectChat(target)}
+          className={`flex-1 flex items-center gap-2 py-2 text-sm ${
+            children.length === 0 ? "px-2" : "pl-0 pr-2"
+          } ${active ? "text-white" : ""}`}
+          style={active ? {} : { color: "#b0a898" }}
+          data-ocid={`messenger.groups.item.${itemIndex}`}
+        >
+          {depth === 0 ? (
+            <Users className="w-3.5 h-3.5 flex-shrink-0 text-amber-400/70" />
+          ) : (
+            <Hash className="w-3.5 h-3.5 flex-shrink-0 text-amber-400/70" />
+          )}
+          <span className="truncate text-xs font-medium">{group.name}</span>
+          <span
+            className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium ${
+              active
+                ? "bg-white/20 text-white"
+                : "bg-amber-500/20 text-amber-400"
+            }`}
+          >
+            {group.members.length}
+          </span>
+        </button>
+
+        {/* + Sub button — only for admins, only when depth < 9 */}
+        {canAddSubgroup && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onNewSubgroup(group.id);
+            }}
+            className={`py-2 pr-1 opacity-0 group-hover:opacity-100 transition-opacity text-[9px] font-bold ${
+              active
+                ? "text-white/70 !opacity-100"
+                : "text-amber-400/70 hover:text-amber-300"
+            }`}
+            title="Add subgroup"
+            data-ocid="messenger.group.add_subgroup.button"
+          >
+            +Sub
+          </button>
+        )}
+
+        {/* Settings gear */}
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onGroupSettings(group.id);
+            }}
+            className={`pr-1.5 py-2 opacity-0 group-hover:opacity-100 transition-opacity ${
+              active
+                ? "text-white/70 !opacity-100"
+                : "text-amber-400/60 hover:text-amber-400"
+            }`}
+            title="Group settings"
+            data-ocid="messenger.group.settings.button"
+          >
+            <Settings className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      {/* Children (recursive) */}
+      {isExpanded && children.length > 0 && (
+        <div className="mt-0.5 space-y-0.5 border-l-2 border-amber-500/20 ml-4">
+          {children.map((child, ci) => (
+            <GroupTreeItem
+              key={child.id}
+              group={child}
+              allGroups={allGroups}
+              currentChat={currentChat}
+              onSelectChat={onSelectChat}
+              onGroupSettings={onGroupSettings}
+              onNewSubgroup={onNewSubgroup}
+              currentUserId={currentUserId}
+              expandedGroups={expandedGroups}
+              onToggleGroupExpand={onToggleGroupExpand}
+              itemIndex={ci + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function MessengerSidebar({
@@ -36,6 +197,7 @@ export default function MessengerSidebar({
   onNewDM,
   onNewGroup,
   onGroupSettings,
+  onNewSubgroup,
   currentUserId,
   expandedGroups,
   onToggleGroupExpand,
@@ -44,8 +206,6 @@ export default function MessengerSidebar({
   const [groupsExpanded, setGroupsExpanded] = useState(true);
 
   const topLevelGroups = groups.filter((g) => !g.parentGroupId);
-  const getSubgroups = (parentId: string) =>
-    groups.filter((g) => g.parentGroupId === parentId);
 
   const isActive = (target: ChatTarget) =>
     currentChat ? chatKey(currentChat) === chatKey(target) : false;
@@ -74,7 +234,6 @@ export default function MessengerSidebar({
         <div className="px-2 py-3 space-y-1">
           {/* Direct Messages */}
           <div>
-            {/* DM Section Header */}
             <div className="flex items-center px-2 py-1.5">
               <button
                 type="button"
@@ -89,7 +248,6 @@ export default function MessengerSidebar({
                 )}
                 Direct Messages
               </button>
-              {/* Visible New DM button in sidebar header */}
               <button
                 type="button"
                 onClick={onNewDM}
@@ -124,8 +282,8 @@ export default function MessengerSidebar({
                     >
                       <Avatar className="w-6 h-6 flex-shrink-0">
                         <AvatarFallback
-                          className={`text-[10px] font-bold text-white ${
-                            active ? "bg-white/20" : getAvatarColor(user.id)
+                          className={`text-[9px] font-bold text-white ${
+                            active ? "bg-white/30" : getAvatarColor(user.id)
                           }`}
                         >
                           {getInitials(user.displayName)}
@@ -134,31 +292,24 @@ export default function MessengerSidebar({
                       <span className="truncate text-xs font-medium">
                         {user.displayName}
                       </span>
-                      <span
-                        className={`ml-auto w-2 h-2 rounded-full flex-shrink-0 ${
-                          active ? "bg-white/70" : "bg-emerald-400"
-                        }`}
-                      />
                     </button>
                   );
                 })}
+
                 {dmContacts.length === 0 && (
                   <p
-                    className="px-2 py-2 text-xs italic"
+                    className="px-2 py-1 text-xs italic"
                     style={{ color: "#665e50" }}
                   >
-                    No conversations yet
+                    No DMs yet
                   </p>
                 )}
               </div>
             )}
           </div>
 
-          <div className="h-px mx-2 my-2" style={{ backgroundColor: "#333" }} />
-
           {/* Groups */}
-          <div>
-            {/* Groups Section Header */}
+          <div className="mt-3">
             <div className="flex items-center px-2 py-1.5">
               <button
                 type="button"
@@ -173,143 +324,27 @@ export default function MessengerSidebar({
                 )}
                 Groups
               </button>
-              <button
-                type="button"
-                onClick={onNewGroup}
-                className="p-1 rounded-md text-amber-400/70 hover:text-amber-400 hover:bg-white/10 transition-colors"
-                title="New Group"
-                data-ocid="messenger.groups.open_modal_button"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
             </div>
 
             {groupsExpanded && (
               <div className="mt-1 space-y-0.5">
-                {topLevelGroups.map((group, idx) => {
-                  const subgroups = getSubgroups(group.id);
-                  const isExpanded = expandedGroups.has(group.id);
-                  const target: ChatTarget = {
-                    type: "group",
-                    groupId: group.id,
-                    name: group.name,
-                  };
-                  const active = isActive(target);
-                  const isAdmin = group.admins.includes(currentUserId);
+                {topLevelGroups.map((group, idx) => (
+                  <GroupTreeItem
+                    key={group.id}
+                    group={group}
+                    allGroups={groups}
+                    currentChat={currentChat}
+                    onSelectChat={onSelectChat}
+                    onGroupSettings={onGroupSettings}
+                    onNewSubgroup={onNewSubgroup}
+                    currentUserId={currentUserId}
+                    expandedGroups={expandedGroups}
+                    onToggleGroupExpand={onToggleGroupExpand}
+                    itemIndex={idx + 1}
+                  />
+                ))}
 
-                  return (
-                    <div key={group.id}>
-                      <div
-                        className={`flex items-center gap-1 rounded-md transition-colors group ${
-                          active ? "bg-amber-500" : "hover:bg-white/10"
-                        }`}
-                      >
-                        {subgroups.length > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => onToggleGroupExpand(group.id)}
-                            className={`pl-1.5 py-2 flex-shrink-0 ${
-                              active
-                                ? "text-white/70"
-                                : "text-amber-400/60 hover:text-amber-400"
-                            }`}
-                          >
-                            {isExpanded ? (
-                              <ChevronDown className="w-3 h-3" />
-                            ) : (
-                              <ChevronRight className="w-3 h-3" />
-                            )}
-                          </button>
-                        ) : (
-                          <span className="pl-3" />
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => onSelectChat(target)}
-                          className={`flex-1 flex items-center gap-2 py-2 text-sm ${
-                            subgroups.length === 0 ? "px-2" : "pl-0 pr-2"
-                          } ${active ? "text-white" : ""}`}
-                          style={active ? {} : { color: "#b0a898" }}
-                          data-ocid={`messenger.groups.item.${idx + 1}`}
-                        >
-                          <Users className="w-3.5 h-3.5 flex-shrink-0 text-amber-400/70" />
-                          <span className="truncate text-xs font-medium">
-                            {group.name}
-                          </span>
-                          <span
-                            className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium ${
-                              active
-                                ? "bg-white/20 text-white"
-                                : "bg-amber-500/20 text-amber-400"
-                            }`}
-                          >
-                            {group.members.length}
-                          </span>
-                        </button>
-                        {isAdmin && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onGroupSettings(group.id);
-                            }}
-                            className={`pr-1.5 py-2 opacity-0 group-hover:opacity-100 transition-opacity ${
-                              active
-                                ? "text-white/70 !opacity-100"
-                                : "text-amber-400/60 hover:text-amber-400"
-                            }`}
-                            title="Group settings"
-                            data-ocid="messenger.group.settings.button"
-                          >
-                            <Settings className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Subgroups */}
-                      {isExpanded && subgroups.length > 0 && (
-                        <div className="ml-5 mt-0.5 space-y-0.5 border-l-2 border-amber-500/30 pl-2">
-                          {subgroups.map((sub, subIdx) => {
-                            const subTarget: ChatTarget = {
-                              type: "group",
-                              groupId: sub.id,
-                              name: sub.name,
-                            };
-                            const subActive = isActive(subTarget);
-                            return (
-                              <button
-                                key={sub.id}
-                                type="button"
-                                onClick={() => onSelectChat(subTarget)}
-                                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors ${
-                                  subActive
-                                    ? "bg-amber-500 text-white"
-                                    : "hover:bg-white/10"
-                                }`}
-                                style={subActive ? {} : { color: "#9a9080" }}
-                                data-ocid={`messenger.subgroup.item.${subIdx + 1}`}
-                              >
-                                <Hash className="w-3 h-3 flex-shrink-0 text-amber-400/70" />
-                                <span className="truncate">{sub.name}</span>
-                                <span
-                                  className={`ml-auto text-[10px] ${
-                                    subActive
-                                      ? "text-white/70"
-                                      : "text-amber-400/60"
-                                  }`}
-                                >
-                                  {sub.members.length}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Always-visible New Group button */}
+                {/* New Group button */}
                 <button
                   type="button"
                   onClick={onNewGroup}

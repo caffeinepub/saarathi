@@ -10,7 +10,11 @@ import type { UserProfile } from "../backend";
 import { useAuth } from "../context/AuthContext";
 import { useLoginMutation, useRegisterMutation } from "../hooks/useQueries";
 
-export default function LoginPage() {
+interface LoginPageProps {
+  onShowLanding?: () => void;
+}
+
+export default function LoginPage({ onShowLanding }: LoginPageProps) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
@@ -269,6 +273,19 @@ export default function LoginPage() {
             </CardContent>
           </Card>
         </motion.div>
+
+        {onShowLanding && (
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={onShowLanding}
+              className="text-sm text-primary/70 hover:text-primary font-medium transition-colors inline-flex items-center gap-1"
+              data-ocid="auth.link"
+            >
+              See how SAARATHI works →
+            </button>
+          </div>
+        )}
 
         <p className="mt-8 text-xs text-muted-foreground text-center">
           © {new Date().getFullYear()}. Built with ♥ using{" "}

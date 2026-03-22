@@ -19,6 +19,15 @@ export interface TaskPayload {
   deadline: string;
   location: string;
   notes: string;
+  attachments?: Array<{
+    id: string;
+    type: string;
+    name: string;
+    docId?: string;
+  }>;
+  locationLat?: number;
+  locationLng?: number;
+  locationAddress?: string;
 }
 
 export interface BusinessDocPayload {
@@ -46,6 +55,8 @@ export interface LocalGroup {
   admins: string[];
   onlyAdminsCanPost: boolean;
   parentGroupId?: string;
+  /** 0 = top-level, 1 = first-level subgroup, … max 9 */
+  depth: number;
 }
 
 export interface LocalMessage {

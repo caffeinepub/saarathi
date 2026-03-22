@@ -38,6 +38,13 @@ import type {
 } from "./types";
 import { formatTime, getInitials } from "./types";
 
+interface ActivityAttachment {
+  id: string;
+  type: string;
+  name: string;
+  docId?: string;
+}
+
 interface Activity {
   id: string;
   title: string;
@@ -46,8 +53,12 @@ interface Activity {
   dateTime: string;
   deadline: string;
   location: string;
+  locationLat?: number;
+  locationLng?: number;
+  locationAddress?: string;
   notes: string;
   status: string;
+  attachments?: ActivityAttachment[];
 }
 
 interface StoredDoc {
@@ -255,6 +266,15 @@ function ShareActivityModal({
       deadline: selectedActivity.deadline,
       location: selectedActivity.location,
       notes: selectedActivity.notes,
+      attachments: selectedActivity.attachments?.map((a) => ({
+        id: a.id,
+        type: a.type,
+        name: a.name,
+        docId: a.docId,
+      })),
+      locationLat: selectedActivity.locationLat,
+      locationLng: selectedActivity.locationLng,
+      locationAddress: selectedActivity.locationAddress,
     });
     onClose();
   }
@@ -439,6 +459,29 @@ function TaskRequestCard({
           <p className="text-xs text-stone-500 bg-amber-50 rounded-lg p-2 leading-relaxed line-clamp-2">
             {tp.notes}
           </p>
+        )}
+
+        {tp.attachments && tp.attachments.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Paperclip className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+            <span className="text-xs text-stone-500 font-medium">
+              Attachments:
+            </span>
+            {tp.attachments.slice(0, 3).map((att) => (
+              <span
+                key={att.id}
+                className="flex items-center gap-1 bg-purple-50 text-purple-700 text-[11px] px-2 py-0.5 rounded-full border border-purple-100"
+              >
+                <FileText className="w-3 h-3" />
+                {att.name}
+              </span>
+            ))}
+            {tp.attachments.length > 3 && (
+              <span className="text-[11px] text-stone-400">
+                +{tp.attachments.length - 3} more
+              </span>
+            )}
+          </div>
         )}
       </div>
 

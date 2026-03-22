@@ -38,6 +38,7 @@ export function makeSampleGroups(currentUserId: string): LocalGroup[] {
       members: [currentUserId, "priya", "rajesh", "ankit"],
       admins: [currentUserId],
       onlyAdminsCanPost: false,
+      depth: 0,
     },
     {
       id: "g1-sub1",
@@ -48,6 +49,7 @@ export function makeSampleGroups(currentUserId: string): LocalGroup[] {
       admins: [currentUserId, "priya"],
       onlyAdminsCanPost: false,
       parentGroupId: "g1",
+      depth: 1,
     },
     {
       id: "g2",
@@ -57,6 +59,7 @@ export function makeSampleGroups(currentUserId: string): LocalGroup[] {
       members: [currentUserId, "meena", "sunita"],
       admins: ["meena"],
       onlyAdminsCanPost: true,
+      depth: 0,
     },
     {
       id: "g3",
@@ -66,6 +69,7 @@ export function makeSampleGroups(currentUserId: string): LocalGroup[] {
       members: [currentUserId, "meena", "rajesh"],
       admins: [currentUserId, "meena"],
       onlyAdminsCanPost: false,
+      depth: 0,
     },
   ];
 }
@@ -127,7 +131,6 @@ export function makeSampleMessages(
         msgType: "text",
         timestamp: m(45),
       },
-      // Received task request in Sales Team from Ravi Kumar
       {
         id: "m_task_1",
         senderId: "ravi",
@@ -255,7 +258,6 @@ export function makeSampleMessages(
         msgType: "text",
         timestamp: h(1),
       },
-      // Received task request in DM from Priya
       {
         id: "d_task_1",
         senderId: "priya",

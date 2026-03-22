@@ -19,28 +19,43 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertCircle,
+  Briefcase,
   Calendar,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
+  ExternalLink,
+  File,
   FileText,
+  ImageIcon,
   MapPin,
   MessageSquare,
+  Paperclip,
   Plus,
   Send,
   Target,
+  Upload,
   Users,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import MapPickerModal from "../components/MapPickerModal";
 import { dataStore } from "../store/dataStore";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type TaskType = "meeting" | "groupTask" | "other";
 type ActivityStatus = "pending" | "inProgress" | "completed";
+
+interface ActivityAttachment {
+  id: string;
+  type: "invoice" | "estimate" | "proposal" | "image" | "pdf";
+  name: string;
+  docId?: string;
+  dataUrl?: string;
+}
 
 interface Activity {
   id: string;
@@ -51,11 +66,15 @@ interface Activity {
   dateTime: string;
   deadline: string;
   location: string;
+  locationLat?: number;
+  locationLng?: number;
+  locationAddress?: string;
   notes: string;
   status: ActivityStatus;
   createdBy: string;
   createdAt: number;
   messengerSent: boolean;
+  attachments?: ActivityAttachment[];
 }
 
 // ─── Sample Data ──────────────────────────────────────────────────────────────
@@ -268,7 +287,19 @@ function ActivityCard({
         {activity.location && (
           <div className="flex items-center gap-2">
             <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-            <span className="truncate">{activity.location}</span>
+            {activity.locationLat && activity.locationLng ? (
+              <a
+                href={`https://www.openstreetmap.org/?mlat=${activity.locationLat}&mlon=${activity.locationLng}#map=15/${activity.locationLat}/${activity.locationLng}`}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate text-orange-600 hover:underline flex items-center gap-1"
+              >
+                {activity.location}
+                <ExternalLink className="w-3 h-3 shrink-0" />
+              </a>
+            ) : (
+              <span className="truncate">{activity.location}</span>
+            )}
           </div>
         )}
         {activity.deadline && (
@@ -282,9 +313,35 @@ function ActivityCard({
       </div>
 
       {activity.notes && (
-        <p className="text-xs text-muted-foreground bg-amber-50/60 rounded-lg px-3 py-2 mb-4 line-clamp-2">
+        <p className="text-xs text-muted-foreground bg-amber-50/60 rounded-lg px-3 py-2 mb-3 line-clamp-2">
           {activity.notes}
         </p>
+      )}
+
+      {activity.attachments && activity.attachments.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap mb-3">
+          <Paperclip className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+          {activity.attachments.slice(0, 3).map((att) => (
+            <span
+              key={att.id}
+              className="flex items-center gap-1 bg-purple-50 text-purple-700 text-xs px-2 py-0.5 rounded-full border border-purple-100"
+            >
+              {att.type === "image" ? (
+                <ImageIcon className="w-3 h-3" />
+              ) : att.type === "pdf" ? (
+                <File className="w-3 h-3" />
+              ) : (
+                <FileText className="w-3 h-3" />
+              )}
+              {att.name}
+            </span>
+          ))}
+          {activity.attachments.length > 3 && (
+            <span className="text-xs text-muted-foreground">
+              +{activity.attachments.length - 3} more
+            </span>
+          )}
+        </div>
       )}
 
       <div className="flex gap-2">
@@ -337,7 +394,16 @@ function NewActivityDialog({
   const [dateTime, setDateTime] = useState("");
   const [deadline, setDeadline] = useState("");
   const [location, setLocation] = useState("");
+  const [locationLat, setLocationLat] = useState<number | undefined>();
+  const [locationLng, setLocationLng] = useState<number | undefined>();
+  const [locationAddress, setLocationAddress] = useState<string | undefined>();
   const [notes, setNotes] = useState("");
+  const [attachments, setAttachments] = useState<ActivityAttachment[]>([]);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [showDocPicker, setShowDocPicker] = useState(false);
+  const [businessDocs, setBusinessDocs] = useState<
+    Array<{ id: string; type: string; number: string; clientName?: string }>
+  >([]);
 
   function reset() {
     setTitle("");
@@ -349,7 +415,13 @@ function NewActivityDialog({
     setDateTime("");
     setDeadline("");
     setLocation("");
+    setLocationLat(undefined);
+    setLocationLng(undefined);
+    setLocationAddress(undefined);
     setNotes("");
+    setAttachments([]);
+    setShowMapPicker(false);
+    setShowDocPicker(false);
   }
 
   function handleAddAssignee(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -374,7 +446,11 @@ function NewActivityDialog({
       dateTime,
       deadline,
       location,
+      locationLat,
+      locationLng,
+      locationAddress,
       notes,
+      attachments: attachments.length > 0 ? attachments : undefined,
       status: "pending",
       createdBy: "You",
       createdAt: Date.now(),
@@ -606,12 +682,55 @@ function NewActivityDialog({
               WHERE
             </span>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                const raw = localStorage.getItem("saarathi_business_docs");
+                if (raw) setBusinessDocs(JSON.parse(raw));
+              } catch {}
+              setShowMapPicker(true);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-orange-200 bg-white hover:bg-orange-50 text-sm text-left transition-colors mb-2"
+            data-ocid="activity.button"
+          >
+            <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
+            <span
+              className={location ? "text-stone-700" : "text-muted-foreground"}
+            >
+              {location || "Pick location on map..."}
+            </span>
+            {locationLat && locationLng && (
+              <ExternalLink className="w-3.5 h-3.5 text-orange-400 ml-auto shrink-0" />
+            )}
+          </button>
+          {locationLat && locationLng && (
+            <a
+              href={`https://www.openstreetmap.org/?mlat=${locationLat}&mlon=${locationLng}#map=15/${locationLat}/${locationLng}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-orange-600 hover:underline flex items-center gap-1 mb-2"
+            >
+              <ExternalLink className="w-3 h-3" /> View on OpenStreetMap
+            </a>
+          )}
           <Input
-            placeholder="Office, Zoom link, address..."
+            placeholder="Or type address manually..."
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            className="bg-white"
+            className="bg-white text-sm"
             data-ocid="activity.input"
+          />
+          <MapPickerModal
+            open={showMapPicker}
+            initialAddress={location}
+            onClose={() => setShowMapPicker(false)}
+            onConfirm={(loc) => {
+              setLocation(loc.address);
+              setLocationLat(loc.lat || undefined);
+              setLocationLng(loc.lng || undefined);
+              setLocationAddress(loc.address);
+            }}
           />
         </div>
 
@@ -633,6 +752,143 @@ function NewActivityDialog({
             className="bg-white resize-none"
             data-ocid="activity.textarea"
           />
+          {/* Attachments */}
+          <div className="mt-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Paperclip className="w-3.5 h-3.5 text-purple-500" />
+              <span className="text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                Attachments
+              </span>
+            </div>
+            <div className="flex gap-2 mb-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-amber-300 text-amber-700 hover:bg-amber-50 text-xs"
+                onClick={() => {
+                  try {
+                    const raw = localStorage.getItem("saarathi_business_docs");
+                    if (raw) setBusinessDocs(JSON.parse(raw));
+                    else setBusinessDocs([]);
+                  } catch {
+                    setBusinessDocs([]);
+                  }
+                  setShowDocPicker(true);
+                }}
+                data-ocid="activity.upload_button"
+              >
+                <Briefcase className="w-3.5 h-3.5 mr-1" /> Attach Document
+              </Button>
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-blue-300 text-blue-700 hover:bg-blue-50 text-xs font-medium transition-colors">
+                  <Upload className="w-3.5 h-3.5" /> Upload File
+                </span>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  data-ocid="activity.upload_button"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      const dataUrl = reader.result as string;
+                      const type: ActivityAttachment["type"] =
+                        file.type.startsWith("image/") ? "image" : "pdf";
+                      setAttachments((prev) => [
+                        ...prev,
+                        {
+                          id: `att_${Date.now()}`,
+                          type,
+                          name: file.name,
+                          dataUrl,
+                        },
+                      ]);
+                    };
+                    reader.readAsDataURL(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+            {/* Doc picker inline */}
+            {showDocPicker && (
+              <div className="border border-amber-200 rounded-lg bg-white shadow-sm mb-2 max-h-40 overflow-y-auto">
+                {businessDocs.length === 0 ? (
+                  <p className="text-xs text-muted-foreground p-3">
+                    No documents found. Create in Business Suite first.
+                  </p>
+                ) : (
+                  businessDocs.map((doc) => (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-amber-50 border-b border-amber-100 last:border-0 flex items-center gap-2"
+                      onClick={() => {
+                        setAttachments((prev) => [
+                          ...prev,
+                          {
+                            id: `att_${Date.now()}`,
+                            type: doc.type as ActivityAttachment["type"],
+                            name: `${doc.type.charAt(0).toUpperCase() + doc.type.slice(1)} ${doc.number}${doc.clientName ? ` — ${doc.clientName}` : ""}`,
+                            docId: doc.id,
+                          },
+                        ]);
+                        setShowDocPicker(false);
+                      }}
+                    >
+                      <FileText className="w-3.5 h-3.5 text-amber-500" />
+                      <span>
+                        {doc.type.charAt(0).toUpperCase() + doc.type.slice(1)} #
+                        {doc.number}
+                        {doc.clientName ? ` — ${doc.clientName}` : ""}
+                      </span>
+                    </button>
+                  ))
+                )}
+                <button
+                  type="button"
+                  className="w-full px-3 py-1.5 text-xs text-muted-foreground hover:bg-gray-50 border-t"
+                  onClick={() => setShowDocPicker(false)}
+                >
+                  Close
+                </button>
+              </div>
+            )}
+            {/* Attachment chips */}
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {attachments.map((att) => (
+                  <span
+                    key={att.id}
+                    className="flex items-center gap-1 bg-purple-50 text-purple-700 text-xs px-2 py-0.5 rounded-full border border-purple-100"
+                  >
+                    {att.type === "image" ? (
+                      <ImageIcon className="w-3 h-3" />
+                    ) : att.type === "pdf" ? (
+                      <File className="w-3 h-3" />
+                    ) : (
+                      <FileText className="w-3 h-3" />
+                    )}
+                    {att.name}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAttachments((prev) =>
+                          prev.filter((a) => a.id !== att.id),
+                        )
+                      }
+                      className="hover:text-red-500 ml-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-3 pt-1">
@@ -678,16 +934,39 @@ function SendToMessengerDialog({
     activity.deadline ? `⏰ Deadline: ${formatDate(activity.deadline)}` : "",
     activity.location ? `📍 Where: ${activity.location}` : "",
     activity.notes ? `📝 Notes: ${activity.notes}` : "",
+    activity.attachments && activity.attachments.length > 0
+      ? `📎 ${activity.attachments.length} attachment(s)`
+      : "",
   ]
     .filter(Boolean)
     .join("\n");
 
   function handleSend() {
     if (!activity) return;
+    const taskPayload = {
+      activityId: activity.id,
+      title: activity.title,
+      taskType: activity.taskType,
+      assignees: activity.assignees,
+      dateTime: activity.dateTime,
+      deadline: activity.deadline,
+      location: activity.location,
+      notes: activity.notes,
+      attachments: activity.attachments?.map((a) => ({
+        id: a.id,
+        type: a.type,
+        name: a.name,
+        docId: a.docId,
+      })),
+      locationLat: activity.locationLat,
+      locationLng: activity.locationLng,
+      locationAddress: activity.locationAddress,
+    };
     const payload = {
       groupId: activity.groupId || "general",
       text: message,
       timestamp: Date.now(),
+      taskPayload,
     };
     localStorage.setItem(
       "saarathi_pending_task_message",
@@ -1072,7 +1351,20 @@ function SchedulerTab({ activities }: { activities: Activity[] }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ActivitiesPage() {
-  const [activities, setActivities] = useState<Activity[]>(INITIAL_ACTIVITIES);
+  const [activities, setActivities] = useState<Activity[]>(() => {
+    try {
+      const stored = localStorage.getItem("saarathi_activities");
+      if (stored) {
+        const parsed: Activity[] = JSON.parse(stored);
+        const merged = [...INITIAL_ACTIVITIES];
+        for (const a of parsed) {
+          if (!merged.find((m) => m.id === a.id)) merged.push(a);
+        }
+        return merged;
+      }
+    } catch {}
+    return INITIAL_ACTIVITIES;
+  });
   const [showNew, setShowNew] = useState(false);
   const [filter, setFilter] = useState<"all" | ActivityStatus>("all");
   const [messengerTarget, setMessengerTarget] = useState<Activity | null>(null);

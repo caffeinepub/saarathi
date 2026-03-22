@@ -408,6 +408,8 @@ export function GroupSettingsModal({
 
   if (!group) return null;
 
+  const isCurrentUserAdmin = group.admins.includes(currentUserId);
+
   const memberUsers = allUsers.filter((u) => group.members.includes(u.id));
   const nonMembers = allUsers.filter(
     (u) =>
@@ -476,41 +478,43 @@ export function GroupSettingsModal({
             </div>
           </div>
 
-          {/* Messaging permissions */}
-          <div className="space-y-3 p-4 bg-amber-50/60 rounded-xl border border-amber-100">
-            <h4 className="text-sm font-semibold text-stone-700 flex items-center gap-1.5">
-              <span className="w-1 h-4 bg-amber-500 rounded-full inline-block" />
-              Messaging Permissions
-            </h4>
-            <div className="flex items-center justify-between py-1">
-              <div>
-                <p className="text-sm font-medium text-stone-700">
-                  Allow members to send messages
-                </p>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  {membersCanPost
-                    ? "All members can send messages in this group"
-                    : "Only admins can send messages in this group"}
-                </p>
+          {/* Messaging permissions — admin only */}
+          {isCurrentUserAdmin && (
+            <div className="space-y-3 p-4 bg-amber-50/60 rounded-xl border border-amber-100">
+              <h4 className="text-sm font-semibold text-stone-700 flex items-center gap-1.5">
+                <span className="w-1 h-4 bg-amber-500 rounded-full inline-block" />
+                Messaging Permissions
+              </h4>
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <p className="text-sm font-medium text-stone-700">
+                    Allow members to send messages
+                  </p>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    {membersCanPost
+                      ? "All members can send messages in this group"
+                      : "Only admins can send messages in this group"}
+                  </p>
+                </div>
+                <Switch
+                  checked={membersCanPost}
+                  onCheckedChange={setMembersCanPost}
+                  data-ocid="messenger.group_settings.switch"
+                />
               </div>
-              <Switch
-                checked={membersCanPost}
-                onCheckedChange={setMembersCanPost}
-                data-ocid="messenger.group_settings.switch"
-              />
+              {!membersCanPost && (
+                <div className="flex items-start gap-2 p-2.5 bg-amber-100 border border-amber-200 rounded-lg">
+                  <Shield className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700">
+                    This group is in announcement mode. Only admins can post.
+                  </p>
+                </div>
+              )}
             </div>
-            {!membersCanPost && (
-              <div className="flex items-start gap-2 p-2.5 bg-amber-100 border border-amber-200 rounded-lg">
-                <Shield className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-700">
-                  This group is in announcement mode. Only admins can post.
-                </p>
-              </div>
-            )}
-          </div>
+          )}
 
-          {/* Subgroups section - only for top-level groups */}
-          {!group.parentGroupId && (
+          {/* Subgroups section - available when depth < 9 */}
+          {(group.depth ?? 0) < 9 && (
             <div className="space-y-3 p-4 bg-amber-50/60 rounded-xl border border-amber-100">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-semibold text-stone-700 flex items-center gap-1.5">

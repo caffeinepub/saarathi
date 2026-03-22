@@ -39,8 +39,27 @@ export default function MessengerPage() {
     SAMPLE_USERS[1],
     SAMPLE_USERS[5], // Ravi Kumar
   ]);
-  const [messages, setMessages] = useState<Record<string, LocalMessage[]>>(() =>
-    makeSampleMessages(currentUserId, currentDisplayName),
+  const [messages, setMessages] = useState<Record<string, LocalMessage[]>>(
+    () => {
+      const base = makeSampleMessages(currentUserId, currentDisplayName);
+      try {
+        const stored = localStorage.getItem("saarathi_messages");
+        if (stored) {
+          const parsed: Record<string, LocalMessage[]> = JSON.parse(stored);
+          const merged = { ...base };
+          for (const [key, msgs] of Object.entries(parsed)) {
+            const existing = merged[key] ?? [];
+            const existingIds = new Set(existing.map((m) => m.id));
+            const newMsgs = msgs.filter((m) => !existingIds.has(m.id));
+            merged[key] = [...existing, ...newMsgs].sort(
+              (a, b) => a.timestamp - b.timestamp,
+            );
+          }
+          return merged;
+        }
+      } catch {}
+      return base;
+    },
   );
   const [currentChat, setCurrentChat] = useState<ChatTarget | null>(null);
 
@@ -72,6 +91,39 @@ export default function MessengerPage() {
   useEffect(() => {
     dataStore.setGroups(groups);
   }, [groups]);
+
+  // Persist messages to localStorage so AI panel writes are visible
+  useEffect(() => {
+    try {
+      localStorage.setItem("saarathi_messages", JSON.stringify(messages));
+    } catch {}
+  }, [messages]);
+
+  // Inject pending task messages written by AI panel
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("saarathi_pending_task_message");
+      if (raw) {
+        const payload = JSON.parse(raw);
+        const key = payload.groupId ? `group_${payload.groupId}` : "group_g1";
+        const msg: LocalMessage = {
+          id: `ai_task_${Date.now()}`,
+          senderId: "ai_assistant",
+          senderName: "AI Assistant",
+          content: `Task Request: ${payload.title || "New Task"}`,
+          msgType: "task_request",
+          timestamp: Date.now(),
+          taskPayload: payload,
+          taskStatus: "pending",
+        };
+        setMessages((prev) => ({
+          ...prev,
+          [key]: [...(prev[key] ?? []), msg],
+        }));
+        localStorage.removeItem("saarathi_pending_task_message");
+      }
+    } catch {}
+  }, []);
 
   // Persist users so 5W WHO can read them
   useEffect(() => {
@@ -208,6 +260,7 @@ export default function MessengerPage() {
         members: [currentUserId],
         admins: [currentUserId],
         onlyAdminsCanPost: false,
+        depth: 0,
       };
       setGroups((prev) => [...prev, newGroup]);
       setCurrentChat({ type: "group", groupId: newGroup.id, name });
@@ -228,8 +281,14 @@ export default function MessengerPage() {
         admins: [currentUserId],
         onlyAdminsCanPost: false,
         parentGroupId: parentId,
+        depth: 0, // will be overridden below
       };
-      setGroups((prev) => [...prev, newGroup]);
+      setGroups((prev) => {
+        const parent = prev.find((g) => g.id === parentId);
+        const parentDepth = parent?.depth ?? 0;
+        const groupWithDepth = { ...newGroup, depth: parentDepth + 1 };
+        return [...prev, groupWithDepth];
+      });
       setExpandedGroups((prev) => new Set([...prev, parentId]));
     },
     [currentUserId],
@@ -351,6 +410,10 @@ export default function MessengerPage() {
           onNewDM={() => setShowNewDM(true)}
           onNewGroup={() => setShowNewGroup(true)}
           onGroupSettings={handleOpenSettings}
+          onNewSubgroup={(parentId) => {
+            setSubgroupParentId(parentId);
+            setShowNewSubgroup(true);
+          }}
           currentUserId={currentUserId}
           expandedGroups={expandedGroups}
           onToggleGroupExpand={(groupId) => {
@@ -387,7 +450,7 @@ export default function MessengerPage() {
         <button
           type="button"
           onClick={() => setShowNewDM(true)}
-          className="fixed bottom-6 left-4 z-40 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition-all hover:scale-105 active:scale-95"
+          className="fixed bottom-6 right-24 z-40 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition-all hover:scale-105 active:scale-95"
           data-ocid="messenger.new_dm.open_modal_button"
           title="New Direct Message"
         >

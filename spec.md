@@ -1,43 +1,35 @@
-# SAARATHI - Phase 2: Messenger Module
+# SAARATHI
 
 ## Current State
-- Phase 1 deployed: user registration/login with username+password, sidebar navigation, dashboard with 4 module cards
-- Backend: UserProfile, registerUser, login, getCallerUserProfile, updateUserProfile, getAllUsersByUsername
-- MessengerPage.tsx is a placeholder with "Coming in Phase 2" content
-- Authorization component already selected
+- AIChatPanel creates tasks by writing to `saarathi_activities` in localStorage but ActivitiesPage never reads from localStorage on mount — it only uses hardcoded INITIAL_ACTIVITIES
+- AIChatPanel sends messages by writing to `saarathi_messages` in localStorage but MessengerPage never reads from localStorage — it uses in-memory React state seeded from sample data only
+- ActivitiesPage "Send to Messenger" writes to `saarathi_pending_task_message` but MessengerPage never reads that key
+- AIChatPanel ParsedConfirmCard is read-only — user cannot edit WHO/WHAT/WHEN/WHERE/WHY before confirming
+- AIChatPanel `confirmTask` ignores the parsed `when` string and always hardcodes tomorrow's date
+- AIChatPanel "Send to Messenger" chat picker only shows groups, no DM option
+- New DM button is at bottom-left instead of bottom-right
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Groups**: Any user can create a group and becomes its admin. Groups have a name, description, and member list.
-- **Group Admins**: Creator is admin. Admins can appoint additional admins per group. Admins can add/remove members.
-- **Subgroups**: Group admins can create subgroups inside a parent group. Each subgroup can have its own admin(s).
-- **Group Settings**: Admins can toggle whether all members can post or only admins can post.
-- **Group Messages**: Members can send text messages in groups/subgroups. Admins can attach images/files via blob storage.
-- **Direct Messages (DMs)**: Any two registered users can DM each other freely. Supports text, images, and files.
-- **Message data**: Each message stores sender principal, timestamp, content (text or file reference), and type.
-- **User list**: Backend endpoint to get all users (for DM and group member search).
+- Editable fields in the AI ParsedConfirmCard so user can modify WHO, WHAT, WHEN, WHERE, WHY before confirming
+- DM contacts as options in the AI "Send to Messenger" chat picker (beside groups)
+- DM option in messenger sidebar as a separate quick-action (already exists, ensure bottom-right)
 
 ### Modify
-- **MessengerPage.tsx**: Replace placeholder with full messenger UI -- three-panel layout: sidebar (groups/DMs), conversation list, and message thread.
+- ActivitiesPage: initialize activities state from localStorage (`saarathi_activities`) on mount, falling back to INITIAL_ACTIVITIES. Merge so both sample + AI-created tasks appear
+- MessengerPage: initialize messages state from localStorage (`saarathi_messages`) on mount (merge with sample). Save messages back to localStorage on every update. On mount, check `saarathi_pending_task_message` and inject into the right chat then clear the key
+- AIChatPanel `confirmTask`: correctly parse the `when` field into an ISO dateTime string rather than always using tomorrow
+- AIChatPanel `getAvailableChats()`: include DM contacts (`saarathi_contacts` + `saarathi_users`) in the picker list alongside groups
+- New DM FAB: ensure it is positioned at bottom-right (not bottom-left)
 
 ### Remove
-- Nothing removed.
+- Nothing removed
 
 ## Implementation Plan
-1. Select `blob-storage` component (images/files in messages).
-2. Generate Motoko backend additions:
-   - Group, Subgroup, GroupMember, GroupMessage, DirectMessage types
-   - createGroup, getGroup, listGroups, addGroupMember, removeGroupMember, assignGroupAdmin
-   - createSubgroup, listSubgroups
-   - updateGroupSettings (toggle posting permission)
-   - sendGroupMessage, getGroupMessages
-   - sendDirectMessage, getDirectMessages, listDMConversations
-   - getAllUsers (public display info only: principal, displayName)
-3. Build frontend Messenger UI:
-   - Left sidebar: list of groups (user is member of) + DM conversations
-   - Middle panel: group details or DM contact, message list
-   - Right panel (or inline): message composer with text, image/file attach
-   - Group creation modal
-   - Group settings modal (admin only): manage members, posting permission, subgroups
-   - Charcoal + Saffron color theme throughout
+1. Fix ActivitiesPage to read `saarathi_activities` from localStorage on mount and merge with existing state
+2. Fix MessengerPage to read/write `saarathi_messages` from localStorage; poll/check `saarathi_pending_task_message` on mount and inject
+3. Fix AIChatPanel ParsedConfirmCard to render editable input fields for each 5W field that user can change before clicking confirm
+4. Fix AIChatPanel `confirmTask` to parse the `when` string into a proper ISO dateTime
+5. Fix AIChatPanel `getAvailableChats()` to include DM contacts as `dm_*` entries
+6. Move New DM FAB to bottom-right in MessengerPage

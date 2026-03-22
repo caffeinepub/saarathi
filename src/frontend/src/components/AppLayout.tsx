@@ -14,6 +14,7 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  Settings,
   X,
   XCircle,
 } from "lucide-react";
@@ -26,8 +27,15 @@ import ActivitiesPage from "../pages/ActivitiesPage";
 import BusinessSuitePage from "../pages/BusinessSuitePage";
 import DashboardPage from "../pages/DashboardPage";
 import MessengerPage from "../pages/MessengerPage";
+import SettingsPage from "../pages/SettingsPage";
 
-type PageKey = "dashboard" | "messenger" | "activities" | "business" | "ai";
+type PageKey =
+  | "dashboard"
+  | "messenger"
+  | "activities"
+  | "business"
+  | "ai"
+  | "settings";
 
 const NAV_ITEMS: Array<{
   key: PageKey;
@@ -60,6 +68,12 @@ const NAV_ITEMS: Array<{
     color: "text-amber-400",
   },
   { key: "ai", label: "AI Assistant", icon: Bot, color: "text-purple-400" },
+  {
+    key: "settings",
+    label: "Settings",
+    icon: Settings,
+    color: "text-white/50",
+  },
 ];
 
 interface Notification {
@@ -389,6 +403,7 @@ export default function AppLayout() {
     activities: <ActivitiesPage />,
     business: <BusinessSuitePage />,
     ai: <AIAssistantPage />,
+    settings: <SettingsPage />,
   };
 
   return (
