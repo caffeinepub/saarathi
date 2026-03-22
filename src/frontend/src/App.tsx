@@ -7,19 +7,19 @@ import LoginPage from "./pages/LoginPage";
 
 function AppInner() {
   const { isLoggedIn } = useAuth();
-  const [showLanding, setShowLanding] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
 
-  if (!isLoggedIn && showLanding) {
+  if (!isLoggedIn && !showLogin) {
     return (
       <LandingPage
-        onBack={() => setShowLanding(false)}
-        onGetStarted={() => setShowLanding(false)}
+        onGetStarted={() => setShowLogin(true)}
+        onSignIn={() => setShowLogin(true)}
       />
     );
   }
 
   if (!isLoggedIn) {
-    return <LoginPage onShowLanding={() => setShowLanding(true)} />;
+    return <LoginPage onBack={() => setShowLogin(false)} />;
   }
 
   return <AppLayout />;
