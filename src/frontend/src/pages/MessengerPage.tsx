@@ -1,6 +1,5 @@
 import { MessageSquarePlus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import AIChatPanel from "../components/AIChatPanel";
 import { useAuth } from "../context/AuthContext";
 import { dataStore } from "../store/dataStore";
 import ChatArea from "./messenger/ChatArea";
@@ -448,7 +447,6 @@ export default function MessengerPage() {
           }
         }}
       />
-      <AIChatPanel />
     </div>
   );
 }

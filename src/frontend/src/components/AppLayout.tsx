@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import AIChatPanel from "../components/AIChatPanel";
 import { useAuth } from "../context/AuthContext";
 import AIAssistantPage from "../pages/AIAssistantPage";
 import ActivitiesPage from "../pages/ActivitiesPage";
@@ -495,6 +496,7 @@ export default function AppLayout() {
           </AnimatePresence>
         </main>
       </div>
+      <AIChatPanel />
     </div>
   );
 }

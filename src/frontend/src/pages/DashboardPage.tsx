@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
-import AIChatPanel from "../components/AIChatPanel";
 import { useAuth } from "../context/AuthContext";
 import { dataStore } from "../store/dataStore";
 import { SAMPLE_USERS } from "./messenger/sampleData";
@@ -334,7 +333,6 @@ export default function DashboardPage({
           </a>
         </p>
       </div>
-      <AIChatPanel />
     </div>
   );
 }

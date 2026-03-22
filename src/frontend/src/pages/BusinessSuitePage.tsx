@@ -36,7 +36,6 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import AIChatPanel from "../components/AIChatPanel";
 import { dataStore } from "../store/dataStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1026,7 +1025,7 @@ function DocFormDialog({
       key={docKey}
     >
       <DialogContent
-        className="max-w-5xl w-full max-h-[calc(100vh-6rem)] overflow-y-auto bg-[#fdf8f0] border border-amber-200"
+        className="sm:max-w-5xl w-full max-h-[calc(100vh-4rem)] overflow-y-auto bg-[#fdf8f0] border border-amber-200"
         data-ocid="doc.dialog"
       >
         {/* Print-only header */}
@@ -1076,7 +1075,7 @@ function DocFormDialog({
           )}
 
           {/* Doc header fields */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 bg-white rounded-xl border border-amber-100">
+          <div className="grid grid-cols-3 gap-3 p-4 bg-white rounded-xl border border-amber-100">
             <div>
               <Label className="text-xs text-muted-foreground">
                 {typePrefix} Number
@@ -2756,7 +2755,6 @@ export default function BusinessSuitePage() {
           />
         )}
       </div>
-      <AIChatPanel />
     </>
   );
 }

@@ -36,7 +36,6 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import AIChatPanel from "../components/AIChatPanel";
 import { dataStore } from "../store/dataStore";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -1272,7 +1271,6 @@ export default function ActivitiesPage() {
         onClose={() => setMessengerTarget(null)}
         onSent={handleMessengerSent}
       />
-      <AIChatPanel />
     </div>
   );
 }
