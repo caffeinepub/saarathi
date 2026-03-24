@@ -389,66 +389,6 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* Chat→AI→Action→Business Flow Strip */}
-      <section className="px-6 py-12 max-w-5xl mx-auto">
-        <div className="text-center mb-8">
-          <div className="text-xs font-bold tracking-widest text-amber-500/70 uppercase mb-3">
-            The SAARATHI Flow
-          </div>
-          <h2 className="text-2xl font-black text-white">How SAARATHI works</h2>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 relative">
-          {[
-            {
-              icon: "💬",
-              step: "Chat",
-              sub: "Send a message in your group",
-              color: "from-blue-600/20 to-blue-500/10 border-blue-500/25",
-            },
-            {
-              icon: "✨",
-              step: "AI",
-              sub: "AI extracts context",
-              color: "from-purple-600/20 to-purple-500/10 border-purple-500/25",
-            },
-            {
-              icon: "📌",
-              step: "Action",
-              sub: "Task created automatically",
-              color: "from-amber-600/20 to-amber-500/10 border-amber-500/25",
-            },
-            {
-              icon: "💰",
-              step: "Business",
-              sub: "Invoice ready in seconds",
-              color: "from-green-600/20 to-green-500/10 border-green-500/25",
-            },
-          ].map((item, i) => (
-            <div
-              key={item.step}
-              className="relative flex flex-col items-center"
-            >
-              {i > 0 && (
-                <div className="hidden md:flex absolute -left-3 top-8 z-10 text-amber-500 text-lg font-bold select-none">
-                  →
-                </div>
-              )}
-              <div
-                className={`w-full bg-gradient-to-b ${item.color} border rounded-2xl p-5 text-center`}
-              >
-                <div className="text-3xl mb-2">{item.icon}</div>
-                <div className="font-black text-white text-lg mb-1">
-                  {item.step}
-                </div>
-                <div className="text-xs text-white/45 leading-relaxed">
-                  {item.sub}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* How It Works */}
       <section className="px-6 py-14 max-w-5xl mx-auto">
         <div className="text-center mb-12">

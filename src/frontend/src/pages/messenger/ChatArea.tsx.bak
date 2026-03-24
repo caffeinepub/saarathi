@@ -8,7 +8,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
@@ -28,7 +27,6 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { getAvatarColor } from "./sampleData";
 import type {
   BusinessDocPayload,
@@ -408,6 +406,7 @@ function TaskRequestCard({
         isOwn ? "border-amber-300" : "border-amber-200"
       } bg-white`}
     >
+      {/* Card Header */}
       <div className="bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-2.5 flex items-center gap-2">
         <MessageSquarePlus className="w-4 h-4 text-white flex-shrink-0" />
         <span className="text-white font-semibold text-xs uppercase tracking-wide">
@@ -418,6 +417,7 @@ function TaskRequestCard({
         </span>
       </div>
 
+      {/* Card Body */}
       <div className="p-3 space-y-2">
         <p className="font-bold text-stone-800 text-sm leading-snug">
           {tp.title}
@@ -485,6 +485,7 @@ function TaskRequestCard({
         )}
       </div>
 
+      {/* Actions / Status */}
       <div className="px-3 pb-3">
         {isOwn ? (
           <div
@@ -802,191 +803,6 @@ function MessageBubble({
   );
 }
 
-// ─── Workspace Tabs Content ───────────────────────────────────────────────────────────────────
-function GroupTasksTab({ groupName }: { groupName: string }) {
-  const mockTasks = [
-    {
-      id: "t1",
-      title: "Send homework PDF to parents",
-      assignee: "Priya Sharma",
-      due: "Today",
-      status: "pending",
-    },
-    {
-      id: "t2",
-      title: "Confirm parent-teacher meeting agenda",
-      assignee: "You",
-      due: "Tomorrow",
-      status: "inProgress",
-    },
-    {
-      id: "t3",
-      title: "Prepare Q3 performance report",
-      assignee: "Rajesh Kumar",
-      due: "3 days",
-      status: "pending",
-    },
-  ];
-
-  return (
-    <div className="p-4 space-y-3" data-ocid="messenger.tasks.panel">
-      <div className="flex items-center justify-between">
-        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Tasks in {groupName}
-        </h4>
-        <span className="text-xs text-amber-600 font-medium">
-          {mockTasks.length} tasks
-        </span>
-      </div>
-      {mockTasks.map((t, i) => (
-        <div
-          key={t.id}
-          className="flex items-start gap-3 p-3 bg-card rounded-lg border border-border"
-          data-ocid={`messenger.tasks.item.${i + 1}`}
-        >
-          <div
-            className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-              t.status === "inProgress" ? "bg-blue-500" : "bg-amber-400"
-            }`}
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">
-              {t.title}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {t.assignee} · Due: {t.due}
-            </p>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function GroupFilesTab() {
-  const mockFiles = [
-    {
-      id: "f1",
-      name: "Q1_Pipeline_Report.xlsx",
-      size: "248 KB",
-      date: "Today",
-    },
-    {
-      id: "f2",
-      name: "Client_Proposal_Mehta.pdf",
-      size: "1.2 MB",
-      date: "Yesterday",
-    },
-    { id: "f3", name: "Team_Photo.jpg", size: "3.4 MB", date: "3 days ago" },
-  ];
-
-  return (
-    <div className="p-4 space-y-3" data-ocid="messenger.files.panel">
-      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        Shared Files
-      </h4>
-      {mockFiles.map((f, i) => (
-        <div
-          key={f.id}
-          className="flex items-center gap-3 p-3 bg-card rounded-lg border border-border"
-          data-ocid={`messenger.files.item.${i + 1}`}
-        >
-          <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-            <FileText className="w-4 h-4 text-blue-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">
-              {f.name}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {f.size} · {f.date}
-            </p>
-          </div>
-          <Download className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function GroupPaymentsTab({ groupName }: { groupName: string }) {
-  const mockInvoices = [
-    {
-      id: "i1",
-      number: "INV-042",
-      client: "Mehta Exports",
-      amount: "₹42,000",
-      status: "paid",
-    },
-    {
-      id: "i2",
-      number: "INV-045",
-      client: "Patel Enterprises",
-      amount: "₹28,500",
-      status: "pending",
-    },
-    {
-      id: "i3",
-      number: "INV-048",
-      client: "Kumar Industries",
-      amount: "₹15,750",
-      status: "draft",
-    },
-  ];
-
-  const statusColor: Record<string, string> = {
-    paid: "bg-green-100 text-green-700",
-    pending: "bg-amber-100 text-amber-700",
-    draft: "bg-gray-100 text-gray-600",
-  };
-
-  return (
-    <div className="p-4 space-y-3" data-ocid="messenger.payments.panel">
-      <div className="flex items-center justify-between">
-        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Invoices — {groupName}
-        </h4>
-      </div>
-      {mockInvoices.map((inv, i) => (
-        <div
-          key={inv.id}
-          className="flex items-center gap-3 p-3 bg-card rounded-lg border border-border"
-          data-ocid={`messenger.payments.item.${i + 1}`}
-        >
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-muted-foreground">
-                {inv.number}
-              </span>
-              <span
-                className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full capitalize ${statusColor[inv.status]}`}
-              >
-                {inv.status}
-              </span>
-            </div>
-            <p className="text-sm font-medium text-foreground truncate mt-0.5">
-              {inv.client}
-            </p>
-          </div>
-          <span className="text-sm font-bold text-amber-700 flex-shrink-0">
-            {inv.amount}
-          </span>
-        </div>
-      ))}
-      {mockInvoices.length === 0 && (
-        <div
-          className="py-8 text-center"
-          data-ocid="messenger.payments.empty_state"
-        >
-          <p className="text-sm text-muted-foreground">
-            No invoices linked to this group yet.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
 interface Props {
   currentChat: ChatTarget | null;
   messages: LocalMessage[];
@@ -1000,7 +816,6 @@ interface Props {
   onOpenSettings: (groupId: string) => void;
   onBack: () => void;
   isMobile: boolean;
-  onNavigate?: (page: string) => void;
 }
 
 export default function ChatArea({
@@ -1015,15 +830,12 @@ export default function ChatArea({
   onOpenSettings,
   onBack,
   isMobile,
-  onNavigate,
 }: Props) {
   const [text, setText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showShareActivity, setShowShareActivity] = useState(false);
   const [showShareDoc, setShowShareDoc] = useState(false);
-  const [showAIReply, setShowAIReply] = useState(false);
-  const [aiReplyText, setAIReplyText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const msgCount = messages.length;
@@ -1046,8 +858,7 @@ export default function ChatArea({
             Select a conversation
           </h3>
           <p className="text-muted-foreground text-sm max-w-xs">
-            Select a conversation to start chatting, or use AI to draft a
-            message ✨
+            Choose a group or direct message from the sidebar to start chatting
           </p>
         </div>
       </div>
@@ -1073,144 +884,8 @@ export default function ChatArea({
     currentChat.type === "dm"
       ? "Direct Message"
       : activeGroup
-        ? `👥 Group · ${activeGroup.members.length} members${activeGroup.onlyAdminsCanPost ? " · Admins only" : ""}`
+        ? `${activeGroup.members.length} members${activeGroup.onlyAdminsCanPost ? " \u00b7 Admins only" : ""}`
         : "";
-
-  const parentGroup = activeGroup?.parentGroupId
-    ? groups.find((g) => g.id === activeGroup.parentGroupId)
-    : null;
-
-  // Dynamic AI action bar based on last message
-  const lastMsgContent =
-    messages[messages.length - 1]?.content?.toLowerCase() ?? "";
-  const showMeeting =
-    lastMsgContent.includes("meet") ||
-    lastMsgContent.includes("call") ||
-    lastMsgContent.includes("schedule");
-  const showTaskBtn =
-    lastMsgContent.includes("send") ||
-    lastMsgContent.includes("review") ||
-    lastMsgContent.includes("update");
-  const showInvoiceBtn =
-    lastMsgContent.includes("invoice") ||
-    lastMsgContent.includes("payment") ||
-    lastMsgContent.includes("pay");
-  const hasContextualButtons = showMeeting || showTaskBtn || showInvoiceBtn;
-  const showFallbackAll = !hasContextualButtons;
-
-  // Smart typing suggestions
-  const draft = text.toLowerCase();
-  const suggestions: string[] = [];
-  if (draft.length > 3) {
-    if (
-      draft.includes("late") ||
-      draft.includes("payment") ||
-      draft.includes("due")
-    ) {
-      suggestions.push("Ask for payment");
-    }
-    if (
-      draft.includes("meet") ||
-      draft.includes("call") ||
-      draft.includes("discuss")
-    ) {
-      suggestions.push("Schedule meeting");
-    }
-    if (
-      draft.includes("sorry") ||
-      draft.includes("apolog") ||
-      draft.includes("mistake")
-    ) {
-      suggestions.push("Reply politely");
-    }
-    if (suggestions.length === 0 && draft.length > 5) {
-      suggestions.push("Reply politely", "Ask for payment");
-    }
-  }
-
-  const SUGGESTION_TEMPLATES: Record<string, string> = {
-    "Reply politely":
-      "Thank you for reaching out. I appreciate your patience and will get back to you shortly.",
-    "Ask for payment":
-      "Hi, just a gentle reminder that the payment for our recent work is due. Please let me know if you have any questions.",
-    "Schedule meeting":
-      "Could we schedule a quick meeting to discuss this? Please let me know your availability.",
-  };
-
-  function generateAIDraftReply(msgs: LocalMessage[]): string {
-    const lastFive = msgs
-      .slice(-5)
-      .map((m) => m.content.toLowerCase())
-      .join(" ");
-    if (lastFive.includes("meet"))
-      return "I'll confirm the meeting details shortly.";
-    if (
-      lastFive.includes("invoice") ||
-      lastFive.includes("payment") ||
-      lastFive.includes("amount")
-    )
-      return "I'll process the payment shortly.";
-    if (lastFive.includes("?"))
-      return "Thanks for reaching out, I'll get back to you soon.";
-    return "Got it, will follow up shortly.";
-  }
-
-  function handleAIReply() {
-    const draft = generateAIDraftReply(messages);
-    setAIReplyText(draft);
-    setShowAIReply(true);
-    toast.info("AI suggestion ready");
-  }
-
-  function handleCreateTaskFromChat() {
-    const lastFive = messages.slice(-5);
-    const allText = lastFive.map((m) => m.content).join(" ");
-    const capitalizedWords = allText.match(/\b[A-Z][a-z]+\b/g) ?? [];
-    const who = [...new Set(capitalizedWords)].slice(0, 2);
-    const what = (
-      lastFive[lastFive.length - 1]?.content ?? "Follow up task"
-    ).slice(0, 60);
-    let when = "today";
-    if (allText.toLowerCase().includes("tomorrow")) when = "tomorrow";
-    else if (allText.toLowerCase().includes("next week")) when = "next week";
-    const prefill = {
-      who,
-      what,
-      when,
-      chatTarget: {
-        type: currentChat?.type,
-        name:
-          currentChat?.type === "dm"
-            ? (currentChat as { displayName: string }).displayName
-            : (currentChat as { name: string }).name,
-      },
-    };
-    try {
-      localStorage.setItem(
-        "saarathi_prefill_activity",
-        JSON.stringify(prefill),
-      );
-    } catch {}
-    if (onNavigate) onNavigate("activities");
-    toast.info("AI suggestion ready");
-  }
-
-  function handleCreateInvoiceFromChat() {
-    const allText = messages
-      .slice(-5)
-      .map((m) => m.content)
-      .join(" ");
-    const companyMatch = allText.match(
-      /\b[A-Z][a-z]+\s+(?:Industries|Pvt|Ltd|Exports|Trading|Co|Group)\b/g,
-    );
-    const clientName = companyMatch?.[0] ?? "";
-    const prefill = { clientName, chatContext: allText.slice(0, 200) };
-    try {
-      localStorage.setItem("saarathi_prefill_invoice", JSON.stringify(prefill));
-    } catch {}
-    if (onNavigate) onNavigate("business");
-    toast.info("AI suggestion ready");
-  }
 
   const handleSend = async () => {
     const content = text.trim();
@@ -1232,8 +907,6 @@ export default function ChatArea({
       void handleSend();
     }
   };
-
-  const isGroupChat = currentChat.type === "group";
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-background">
@@ -1290,191 +963,119 @@ export default function ChatArea({
         )}
       </div>
 
-      {/* Workspace context strip for group chats */}
-      {isGroupChat && activeGroup && (
-        <div
-          className="flex items-center gap-3 px-4 py-2 border-b flex-shrink-0"
-          style={{ background: "#1e1e1e", borderColor: "#2d2d2d" }}
-        >
-          <span className="text-xs font-medium text-amber-400">
-            {parentGroup
-              ? `📂 ${parentGroup.name} / ${activeGroup.name}`
-              : `📂 ${activeGroup.name}`}
+      {/* Messages */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+      >
+        {messages.length === 0 && (
+          <div
+            className="flex flex-col items-center justify-center h-full text-center"
+            data-ocid="messenger.messages.empty_state"
+          >
+            <p className="text-muted-foreground text-sm">
+              No messages yet. Say hello! 👋
+            </p>
+          </div>
+        )}
+        {messages.map((msg) => (
+          <MessageBubble
+            key={msg.id}
+            msg={msg}
+            isOwn={msg.senderId === currentUserId}
+            onUpdateTaskStatus={onUpdateTaskStatus}
+          />
+        ))}
+      </div>
+
+      {/* File preview */}
+      {pendingFile && (
+        <div className="px-4 py-2 border-t border-border bg-muted/30 flex items-center gap-2 flex-shrink-0">
+          <File className="w-4 h-4 text-primary flex-shrink-0" />
+          <span className="text-sm text-foreground truncate">
+            {pendingFile.name}
           </span>
-          <span className="text-xs text-stone-400">
-            👥 {activeGroup.members.length} members
-          </span>
-          <span className="text-xs text-orange-400">· 3 pending actions</span>
-          <span className="text-xs text-amber-400">· ₹12,000 pending</span>
+          <button
+            type="button"
+            onClick={() => setPendingFile(null)}
+            className="ml-auto text-muted-foreground hover:text-destructive text-xs"
+          >
+            Remove
+          </button>
         </div>
       )}
 
-      {/* Group chat workspace tabs vs DM standard view */}
-      {isGroupChat ? (
-        <Tabs
-          defaultValue="chat"
-          className="flex-1 flex flex-col overflow-hidden"
-        >
-          {/* Tab bar */}
-          <div className="flex-shrink-0 px-4 pt-2 pb-0 border-b border-border bg-card">
-            <TabsList className="h-8 bg-transparent p-0 gap-1">
-              <TabsTrigger
-                value="chat"
-                className="h-7 text-xs px-3 rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:text-amber-600 data-[state=active]:bg-transparent bg-transparent"
-                data-ocid="messenger.chat.tab"
-              >
-                💬 Chat
-              </TabsTrigger>
-              <TabsTrigger
-                value="tasks"
-                className="h-7 text-xs px-3 rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:text-amber-600 data-[state=active]:bg-transparent bg-transparent"
-                data-ocid="messenger.tasks.tab"
-              >
-                📌 Tasks
-              </TabsTrigger>
-              <TabsTrigger
-                value="files"
-                className="h-7 text-xs px-3 rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:text-amber-600 data-[state=active]:bg-transparent bg-transparent"
-                data-ocid="messenger.files.tab"
-              >
-                📁 Files
-              </TabsTrigger>
-              <TabsTrigger
-                value="payments"
-                className="h-7 text-xs px-3 rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:text-amber-600 data-[state=active]:bg-transparent bg-transparent"
-                data-ocid="messenger.payments.tab"
-              >
-                💰 Payments
-              </TabsTrigger>
-            </TabsList>
+      {/* Composer */}
+      <div className="px-4 py-3 border-t border-border bg-card flex-shrink-0">
+        {!canPost ? (
+          <div className="flex items-center justify-center py-2 text-sm text-muted-foreground">
+            <span>Only admins can post in this group</span>
           </div>
-
-          {/* Chat tab: messages + composer */}
-          <TabsContent
-            value="chat"
-            className="flex-1 flex flex-col overflow-hidden mt-0 data-[state=inactive]:hidden"
-          >
-            <div
-              ref={scrollRef}
-              className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+        ) : (
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 text-muted-foreground hover:text-primary transition-colors rounded-lg hover:bg-muted flex-shrink-0 mb-0.5"
+              title="Attach file"
+              data-ocid="messenger.upload_button"
             >
-              {messages.length === 0 && (
-                <div
-                  className="flex flex-col items-center justify-center h-full text-center"
-                  data-ocid="messenger.messages.empty_state"
-                >
-                  <p className="text-muted-foreground text-sm">
-                    Start conversation or use AI to draft message ✨ — use the
-                    AI Action Bar below
-                  </p>
-                </div>
-              )}
-              {messages.map((msg) => (
-                <MessageBubble
-                  key={msg.id}
-                  msg={msg}
-                  isOwn={msg.senderId === currentUserId}
-                  onUpdateTaskStatus={onUpdateTaskStatus}
-                />
-              ))}
-            </div>
-            {renderComposer()}
-          </TabsContent>
-
-          {/* Tasks tab */}
-          <TabsContent value="tasks" className="flex-1 overflow-y-auto mt-0">
-            <GroupTasksTab groupName={headerTitle} />
-          </TabsContent>
-
-          {/* Files tab */}
-          <TabsContent value="files" className="flex-1 overflow-y-auto mt-0">
-            <GroupFilesTab />
-          </TabsContent>
-
-          {/* Payments tab */}
-          <TabsContent value="payments" className="flex-1 overflow-y-auto mt-0">
-            <GroupPaymentsTab groupName={headerTitle} />
-          </TabsContent>
-        </Tabs>
-      ) : (
-        /* DM: standard messages + composer */
-        <>
-          <div
-            ref={scrollRef}
-            className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
-          >
-            {messages.length === 0 && (
-              <div
-                className="flex flex-col items-center justify-center h-full text-center"
-                data-ocid="messenger.messages.empty_state"
-              >
-                <p className="text-muted-foreground text-sm">
-                  Start conversation or use AI to draft message ✨
-                </p>
-              </div>
-            )}
-            {messages.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                msg={msg}
-                isOwn={msg.senderId === currentUserId}
-                onUpdateTaskStatus={onUpdateTaskStatus}
-              />
-            ))}
-          </div>
-          {renderComposer()}
-        </>
-      )}
-
-      {/* AI Reply Preview Dialog */}
-      <Dialog
-        open={showAIReply}
-        onOpenChange={(v) => !v && setShowAIReply(false)}
-      >
-        <DialogContent
-          className="sm:max-w-md bg-white border border-purple-200"
-          data-ocid="messenger.ai_reply.dialog"
-        >
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-purple-700">
-              ✨ AI Draft Reply
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Review and edit before sending:
-            </p>
-            <Textarea
-              value={aiReplyText}
-              onChange={(e) => setAIReplyText(e.target.value)}
-              className="min-h-[80px] border-purple-200 focus:ring-purple-400"
-              data-ocid="messenger.ai_reply.textarea"
+              <Paperclip className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowShareActivity(true)}
+              className="p-2 text-amber-500 hover:text-amber-600 transition-colors rounded-lg hover:bg-amber-50 flex-shrink-0 mb-0.5"
+              title="Share Activity as Task Request"
+              data-ocid="messenger.share_activity.open_modal_button"
+            >
+              <MessageSquarePlus className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowShareDoc(true)}
+              className="p-2 text-blue-500 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 flex-shrink-0 mb-0.5"
+              title="Send Invoice / Proposal"
+              data-ocid="messenger.share_doc.open_modal_button"
+            >
+              <Briefcase className="w-4 h-4" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) setPendingFile(f);
+                e.target.value = "";
+              }}
             />
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowAIReply(false)}
-                data-ocid="messenger.ai_reply.cancel_button"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  if (aiReplyText.trim()) {
-                    onSendMessage(aiReplyText.trim());
-                    setShowAIReply(false);
-                    setAIReplyText("");
-                  }
-                }}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
-                data-ocid="messenger.ai_reply.submit_button"
-              >
-                <Send className="w-4 h-4 mr-1" /> Send
-              </Button>
-            </div>
+            <Textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={`Message ${headerTitle}...`}
+              className="flex-1 resize-none min-h-[40px] max-h-[120px] bg-background border-border text-sm py-2"
+              rows={1}
+              data-ocid="messenger.input"
+            />
+            <Button
+              onClick={() => void handleSend()}
+              disabled={isSending || (!text.trim() && !pendingFile)}
+              size="icon"
+              className="w-9 h-9 bg-primary hover:bg-primary/90 flex-shrink-0 mb-0.5"
+              data-ocid="messenger.submit_button"
+            >
+              {isSending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        )}
+      </div>
 
       {/* Share Activity Modal */}
       <ShareActivityModal
@@ -1495,167 +1096,4 @@ export default function ChatArea({
       />
     </div>
   );
-
-  function renderComposer() {
-    return (
-      <div className="px-4 py-3 border-t border-border bg-card flex-shrink-0">
-        {!canPost ? (
-          <div className="flex items-center justify-center py-2 text-sm text-muted-foreground">
-            <span>Only admins can post in this group</span>
-          </div>
-        ) : (
-          <>
-            {/* Smart typing suggestions */}
-            {suggestions.length > 0 && (
-              <div
-                className="flex gap-1.5 mb-2 flex-wrap"
-                data-ocid="messenger.suggestions.panel"
-              >
-                {suggestions.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setText(SUGGESTION_TEMPLATES[s] ?? s)}
-                    className="text-xs px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors font-medium"
-                    data-ocid="messenger.suggestion.button"
-                  >
-                    💡 {s}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* File preview */}
-            {pendingFile && (
-              <div className="mb-2 flex items-center gap-2">
-                <File className="w-4 h-4 text-primary flex-shrink-0" />
-                <span className="text-sm text-foreground truncate">
-                  {pendingFile.name}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPendingFile(null)}
-                  className="ml-auto text-muted-foreground hover:text-destructive text-xs"
-                >
-                  Remove
-                </button>
-              </div>
-            )}
-
-            <div className="flex items-end gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2 text-muted-foreground hover:text-primary transition-colors rounded-lg hover:bg-muted flex-shrink-0 mb-0.5"
-                title="Attach file"
-                data-ocid="messenger.upload_button"
-              >
-                <Paperclip className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowShareActivity(true)}
-                className="p-2 text-amber-500 hover:text-amber-600 transition-colors rounded-lg hover:bg-amber-50 flex-shrink-0 mb-0.5"
-                title="Share Activity as Task Request"
-                data-ocid="messenger.share_activity.open_modal_button"
-              >
-                <MessageSquarePlus className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowShareDoc(true)}
-                className="p-2 text-blue-500 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 flex-shrink-0 mb-0.5"
-                title="Send Invoice / Proposal"
-                data-ocid="messenger.share_doc.open_modal_button"
-              >
-                <Briefcase className="w-4 h-4" />
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) setPendingFile(f);
-                  e.target.value = "";
-                }}
-              />
-              <Textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={`Message ${headerTitle}...`}
-                className="flex-1 resize-none min-h-[40px] max-h-[120px] bg-background border-border text-sm py-2"
-                rows={1}
-                data-ocid="messenger.input"
-              />
-              <Button
-                onClick={() => void handleSend()}
-                disabled={isSending || (!text.trim() && !pendingFile)}
-                size="icon"
-                className="w-9 h-9 bg-primary hover:bg-primary/90 flex-shrink-0 mb-0.5"
-                data-ocid="messenger.submit_button"
-              >
-                {isSending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-              </Button>
-            </div>
-
-            {/* Dynamic AI Action Bar */}
-            <div className="mt-2" data-ocid="messenger.ai_action.panel">
-              {hasContextualButtons && (
-                <p className="text-[10px] text-purple-400 font-medium mb-1">
-                  AI suggests:
-                </p>
-              )}
-              <div className="flex gap-1.5 flex-wrap">
-                <button
-                  type="button"
-                  onClick={handleAIReply}
-                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors font-medium"
-                  data-ocid="messenger.ai_reply.button"
-                >
-                  ✨ AI Reply
-                </button>
-                {(showFallbackAll || showMeeting) && (
-                  <button
-                    type="button"
-                    onClick={handleCreateTaskFromChat}
-                    className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors font-medium"
-                    data-ocid="messenger.schedule_meeting.button"
-                  >
-                    📌 Schedule Meeting
-                  </button>
-                )}
-                {(showFallbackAll || showTaskBtn) && (
-                  <button
-                    type="button"
-                    onClick={handleCreateTaskFromChat}
-                    className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors font-medium"
-                    data-ocid="messenger.create_task.button"
-                  >
-                    📌 Create Task
-                  </button>
-                )}
-                {(showFallbackAll || showInvoiceBtn) && (
-                  <button
-                    type="button"
-                    onClick={handleCreateInvoiceFromChat}
-                    className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full bg-green-100 text-green-700 hover:bg-green-200 transition-colors font-medium"
-                    data-ocid="messenger.create_invoice.button"
-                  >
-                    💰 Create Invoice
-                  </button>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
 }

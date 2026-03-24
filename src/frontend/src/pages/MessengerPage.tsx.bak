@@ -1,5 +1,5 @@
 import { MessageSquarePlus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { dataStore } from "../store/dataStore";
 import ChatArea from "./messenger/ChatArea";
@@ -26,148 +26,7 @@ import type {
 } from "./messenger/types";
 import { chatKey } from "./messenger/types";
 
-interface MessengerPageProps {
-  onNavigate?: (page: string) => void;
-}
-
-// ─── Today Summary Strip ──────────────────────────────────────────────────────
-function TodaySummaryStrip({
-  messages,
-  currentUserId,
-  onNavigate,
-}: {
-  messages: Record<string, LocalMessage[]>;
-  currentUserId: string;
-  onNavigate?: (page: string) => void;
-}) {
-  const counts = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    let pending = 3;
-    let overdue = 1;
-    let amountDue = 28500;
-
-    try {
-      const raw = localStorage.getItem("saarathi_activities");
-      if (raw) {
-        const acts = JSON.parse(raw);
-        pending = acts.filter(
-          (a: { status: string }) =>
-            a.status !== "completed" && a.status !== "done",
-        ).length;
-        overdue = acts.filter((a: { deadline: string; status: string }) => {
-          if (!a.deadline || a.status === "completed") return false;
-          return new Date(a.deadline) < new Date();
-        }).length;
-      }
-    } catch {}
-
-    try {
-      const raw = localStorage.getItem("saarathi_business_docs");
-      if (raw) {
-        const docs = JSON.parse(raw);
-        const unpaid = docs.filter(
-          (d: {
-            type: string;
-            status: string;
-            lineItems: Array<{ qty: number; rate: number; gstRate: number }>;
-          }) => d.type === "invoice" && d.status !== "paid",
-        );
-        if (unpaid.length > 0) {
-          amountDue = unpaid.reduce(
-            (
-              sum: number,
-              d: {
-                lineItems: Array<{
-                  qty: number;
-                  rate: number;
-                  gstRate: number;
-                }>;
-              },
-            ) => {
-              return (
-                sum +
-                d.lineItems.reduce(
-                  (
-                    s: number,
-                    item: { qty: number; rate: number; gstRate: number },
-                  ) => s + item.qty * item.rate * (1 + item.gstRate / 100),
-                  0,
-                )
-              );
-            },
-            0,
-          );
-        }
-      }
-    } catch {}
-
-    const allMessages = Object.values(messages).flat();
-    const unread = allMessages.filter(
-      (m) =>
-        m.senderId !== currentUserId &&
-        m.timestamp > Date.now() - 24 * 60 * 60 * 1000,
-    ).length;
-
-    return { pending, overdue, amountDue, unread: unread || 5, today };
-  }, [messages, currentUserId]);
-
-  return (
-    <div
-      className="flex items-center gap-1 px-4 py-2 flex-shrink-0 overflow-x-auto"
-      style={{
-        background: "#111",
-        borderBottom: "1px solid #2a2a2a",
-        minHeight: "38px",
-      }}
-      data-ocid="messenger.summary.panel"
-    >
-      <span className="text-xs font-semibold text-amber-400/60 mr-1 whitespace-nowrap">
-        Today:
-      </span>
-      <button
-        type="button"
-        onClick={() => onNavigate?.("activities")}
-        className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-red-900/40 text-red-400 hover:bg-red-900/60 transition-colors whitespace-nowrap font-medium"
-        data-ocid="messenger.summary.actions.button"
-        title="Go to Activities"
-      >
-        🔴 {counts.pending} Pending
-      </button>
-      {counts.overdue > 0 && (
-        <button
-          type="button"
-          onClick={() => onNavigate?.("activities")}
-          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-orange-900/40 text-orange-400 hover:bg-orange-900/60 transition-colors whitespace-nowrap font-medium"
-          data-ocid="messenger.summary.overdue.button"
-          title="Overdue actions"
-        >
-          ⚠️ {counts.overdue} Overdue
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={() => onNavigate?.("business")}
-        className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-amber-900/40 text-amber-400 hover:bg-amber-900/60 transition-colors whitespace-nowrap font-medium"
-        data-ocid="messenger.summary.money.button"
-        title="Go to Business Suite"
-      >
-        💰 ₹
-        {counts.amountDue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}{" "}
-        Due
-      </button>
-      <button
-        type="button"
-        className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-900/40 text-blue-400 hover:bg-blue-900/60 transition-colors whitespace-nowrap font-medium"
-        data-ocid="messenger.summary.messages.button"
-        title="Unread messages"
-      >
-        💬 {counts.unread} Unread
-      </button>
-    </div>
-  );
-}
-
-export default function MessengerPage({ onNavigate }: MessengerPageProps) {
+export default function MessengerPage() {
   const { profile } = useAuth();
   const currentUserId = profile?.username || "me";
   const currentDisplayName = profile?.displayName || profile?.username || "You";
@@ -538,64 +397,53 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
 
   return (
     <div
-      className="h-full flex flex-col overflow-hidden relative"
+      className="h-full flex overflow-hidden relative"
       data-ocid="messenger.panel"
     >
-      {/* Today Summary Strip */}
-      <TodaySummaryStrip
-        messages={messages}
-        currentUserId={currentUserId}
-        onNavigate={onNavigate}
-      />
+      {/* Left sidebar */}
+      {showSidebar && (
+        <MessengerSidebar
+          groups={groups}
+          dmContacts={dmContacts}
+          currentChat={currentChat}
+          onSelectChat={handleSelectChat}
+          onNewDM={() => setShowNewDM(true)}
+          onNewGroup={() => setShowNewGroup(true)}
+          onGroupSettings={handleOpenSettings}
+          onNewSubgroup={(parentId) => {
+            setSubgroupParentId(parentId);
+            setShowNewSubgroup(true);
+          }}
+          currentUserId={currentUserId}
+          expandedGroups={expandedGroups}
+          onToggleGroupExpand={(groupId) => {
+            setExpandedGroups((prev) => {
+              const next = new Set(prev);
+              if (next.has(groupId)) next.delete(groupId);
+              else next.add(groupId);
+              return next;
+            });
+          }}
+        />
+      )}
 
-      {/* Main flex row: sidebar + chat */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left sidebar */}
-        {showSidebar && (
-          <MessengerSidebar
-            groups={groups}
-            dmContacts={dmContacts}
-            currentChat={currentChat}
-            onSelectChat={handleSelectChat}
-            onNewDM={() => setShowNewDM(true)}
-            onNewGroup={() => setShowNewGroup(true)}
-            onGroupSettings={handleOpenSettings}
-            onNewSubgroup={(parentId) => {
-              setSubgroupParentId(parentId);
-              setShowNewSubgroup(true);
-            }}
-            currentUserId={currentUserId}
-            expandedGroups={expandedGroups}
-            onToggleGroupExpand={(groupId) => {
-              setExpandedGroups((prev) => {
-                const next = new Set(prev);
-                if (next.has(groupId)) next.delete(groupId);
-                else next.add(groupId);
-                return next;
-              });
-            }}
-          />
-        )}
-
-        {/* Chat area */}
-        {showChat && (
-          <ChatArea
-            currentChat={currentChat}
-            messages={currentMessages}
-            groups={groups}
-            currentUserId={currentUserId}
-            currentDisplayName={currentDisplayName}
-            onSendMessage={handleSendMessage}
-            onSendTaskRequest={handleSendTaskRequest}
-            onSendBusinessDoc={handleSendBusinessDoc}
-            onUpdateTaskStatus={handleUpdateTaskStatus}
-            onOpenSettings={handleOpenSettings}
-            onBack={handleBack}
-            isMobile={isMobile}
-            onNavigate={onNavigate}
-          />
-        )}
-      </div>
+      {/* Chat area */}
+      {showChat && (
+        <ChatArea
+          currentChat={currentChat}
+          messages={currentMessages}
+          groups={groups}
+          currentUserId={currentUserId}
+          currentDisplayName={currentDisplayName}
+          onSendMessage={handleSendMessage}
+          onSendTaskRequest={handleSendTaskRequest}
+          onSendBusinessDoc={handleSendBusinessDoc}
+          onUpdateTaskStatus={handleUpdateTaskStatus}
+          onOpenSettings={handleOpenSettings}
+          onBack={handleBack}
+          isMobile={isMobile}
+        />
+      )}
 
       {/* Floating New DM Button — visible only when sidebar is shown */}
       {showSidebar && (

@@ -67,7 +67,7 @@ const NAV_ITEMS: Array<{
     icon: Briefcase,
     color: "text-amber-400",
   },
-  { key: "ai", label: "AI (Advanced)", icon: Bot, color: "text-purple-300" },
+  { key: "ai", label: "AI Assistant", icon: Bot, color: "text-purple-400" },
   {
     key: "settings",
     label: "Settings",
@@ -349,7 +349,7 @@ function Sidebar({
 }
 
 export default function AppLayout() {
-  const [activePage, setActivePage] = useState<PageKey>("messenger");
+  const [activePage, setActivePage] = useState<PageKey>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -399,9 +399,7 @@ export default function AppLayout() {
 
   const PAGE_COMPONENTS: Record<PageKey, React.ReactElement> = {
     dashboard: <DashboardPage onNavigate={setActivePage} />,
-    messenger: (
-      <MessengerPage onNavigate={(page) => setActivePage(page as PageKey)} />
-    ),
+    messenger: <MessengerPage />,
     activities: <ActivitiesPage />,
     business: <BusinessSuitePage />,
     ai: <AIAssistantPage />,

@@ -75,24 +75,10 @@ interface Activity {
   createdAt: number;
   messengerSent: boolean;
   attachments?: ActivityAttachment[];
-  chatThreadId?: string;
 }
 
 // ─── Sample Data ──────────────────────────────────────────────────────────────
 const SAMPLE_GROUPS = ["Sales Team", "Accounts", "Operations", "Management"];
-
-// ─── Auto Priority ────────────────────────────────────────────────────────────
-function computePriority(
-  activity: Activity,
-): "urgent" | "action_needed" | null {
-  const today = new Date().toISOString().slice(0, 10);
-  const actDate = activity.dateTime?.slice(0, 10) ?? "";
-  if (actDate === today) return "urgent";
-  const lower = activity.title.toLowerCase();
-  if (lower.includes("send") || lower.includes("review"))
-    return "action_needed";
-  return null;
-}
 
 const INITIAL_ACTIVITIES: Activity[] = [
   {
@@ -234,54 +220,16 @@ function ActivityCard({
   index,
   onStatusChange,
   onSendToMessenger,
-  onNudge,
 }: {
   activity: Activity;
   index: number;
   onStatusChange: (id: string) => void;
   onSendToMessenger: (activity: Activity) => void;
-  onNudge: (activity: Activity, message: string) => void;
 }) {
   const sc = STATUS_CONFIG[activity.status];
   const tc = TASK_TYPE_CONFIG[activity.taskType];
   const overdue = isOverdue(activity.deadline, activity.status);
   const StatusIcon = sc.icon;
-  const [nudgeOpen, setNudgeOpen] = useState(false);
-  const [nudgeTone, setNudgeTone] = useState<"gentle" | "urgent" | "custom">(
-    "gentle",
-  );
-  const [nudgeCustom, setNudgeCustom] = useState("");
-
-  const today = new Date().toISOString().slice(0, 10);
-  const deadlineDate = activity.deadline?.slice(0, 10);
-  const isToday = deadlineDate === today;
-  const overdueByDays =
-    overdue && deadlineDate
-      ? Math.ceil(
-          (Date.now() - new Date(deadlineDate).getTime()) /
-            (1000 * 60 * 60 * 24),
-        )
-      : 0;
-  const dueTodayOrSoon =
-    !overdue && deadlineDate && deadlineDate > today
-      ? Math.ceil(
-          (new Date(deadlineDate).getTime() - Date.now()) /
-            (1000 * 60 * 60 * 24),
-        )
-      : 0;
-
-  const gentleMsg = `Hi, just a gentle reminder about "${activity.title}". Please take a look when you get a chance.`;
-  const urgentMsg = `URGENT: Action required on "${activity.title}". This needs your immediate attention.`;
-
-  function handleNudgeSend() {
-    let msg = gentleMsg;
-    if (nudgeTone === "urgent") msg = urgentMsg;
-    else if (nudgeTone === "custom") msg = nudgeCustom || gentleMsg;
-    onNudge(activity, msg);
-    setNudgeOpen(false);
-    setNudgeTone("gentle");
-    setNudgeCustom("");
-  }
 
   return (
     <motion.div
@@ -289,13 +237,7 @@ function ActivityCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06 }}
       data-ocid={`activity.item.${index + 1}`}
-      className={`bg-white rounded-xl border shadow-card hover:shadow-md transition-shadow p-5 ${
-        overdue
-          ? "border-l-4 border-l-red-500 border-red-100 animate-urgent-pulse"
-          : isToday
-            ? "border-amber-300 bg-amber-50/30"
-            : "border-amber-100"
-      }`}
+      className="bg-white rounded-xl border border-amber-100 shadow-card hover:shadow-md transition-shadow p-5"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
@@ -312,35 +254,9 @@ function ActivityCard({
             )}
             {overdue && (
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-600">
-                {overdueByDays > 0 ? `Overdue by ${overdueByDays}d` : "Overdue"}
+                Overdue
               </span>
             )}
-            {isToday && !overdue && (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-200 text-amber-800">
-                ⏰ Due today
-              </span>
-            )}
-            {dueTodayOrSoon > 0 && dueTodayOrSoon <= 2 && !isToday && (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                Due in {dueTodayOrSoon}d
-              </span>
-            )}
-            {(() => {
-              const p = computePriority(activity);
-              if (p === "urgent")
-                return (
-                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-600 flex items-center gap-0.5">
-                    🔴 Urgent
-                  </span>
-                );
-              if (p === "action_needed")
-                return (
-                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 flex items-center gap-0.5">
-                    ⚡ Action needed
-                  </span>
-                );
-              return null;
-            })()}
           </div>
           <h3 className="font-semibold text-foreground text-base leading-snug truncate">
             {activity.title}
@@ -450,83 +366,7 @@ function ActivityCard({
           <Send className="w-3.5 h-3.5 mr-1.5" />
           {activity.messengerSent ? "Sent" : "Send to Messenger"}
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className={`border-orange-200 text-orange-600 hover:bg-orange-50 px-2.5 ${nudgeOpen ? "bg-orange-50" : ""}`}
-          onClick={() => setNudgeOpen((v) => !v)}
-          title="Send nudge reminder to chat"
-          data-ocid={`activity.toggle.${index + 1}`}
-        >
-          🔔 Nudge
-        </Button>
       </div>
-
-      {/* Inline nudge tone selector */}
-      {nudgeOpen && (
-        <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-100 space-y-2">
-          <p className="text-xs font-semibold text-orange-700">
-            Choose reminder tone:
-          </p>
-          <div className="flex gap-1.5">
-            {(["gentle", "urgent", "custom"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => {
-                  setNudgeTone(t);
-                  if (t !== "custom") setNudgeCustom("");
-                }}
-                className={`text-xs px-2.5 py-1 rounded-full border capitalize transition-colors ${
-                  nudgeTone === t
-                    ? "bg-orange-500 text-white border-orange-500"
-                    : "bg-white text-orange-600 border-orange-200 hover:bg-orange-100"
-                }`}
-                data-ocid={`activity.nudge_${t}.button`}
-              >
-                {t === "gentle"
-                  ? "🤝 Gentle"
-                  : t === "urgent"
-                    ? "🚨 Urgent"
-                    : "✏️ Custom"}
-              </button>
-            ))}
-          </div>
-          {nudgeTone === "custom" && (
-            <textarea
-              className="w-full text-xs p-2 border border-orange-200 rounded-lg bg-white resize-none focus:outline-none focus:ring-1 focus:ring-orange-400"
-              rows={2}
-              placeholder="Custom reminder message..."
-              value={nudgeCustom || gentleMsg}
-              onChange={(e) => setNudgeCustom(e.target.value)}
-              data-ocid="activity.nudge_custom.textarea"
-            />
-          )}
-          {nudgeTone !== "custom" && (
-            <p className="text-xs text-stone-500 italic line-clamp-2">
-              "{nudgeTone === "gentle" ? gentleMsg : urgentMsg}"
-            </p>
-          )}
-          <div className="flex gap-2 justify-end">
-            <button
-              type="button"
-              onClick={() => setNudgeOpen(false)}
-              className="text-xs px-2.5 py-1 rounded-lg border border-stone-300 text-stone-600 hover:bg-stone-100"
-              data-ocid="activity.nudge_cancel.button"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleNudgeSend}
-              className="text-xs px-2.5 py-1 rounded-lg bg-orange-500 text-white hover:bg-orange-600"
-              data-ocid="activity.nudge_send.button"
-            >
-              Send Nudge
-            </button>
-          </div>
-        </div>
-      )}
     </motion.div>
   );
 }
@@ -1551,24 +1391,6 @@ export default function ActivitiesPage() {
     dataStore.setActivities(activities);
   }, [activities]);
 
-  // Pre-fill from chat context
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("saarathi_prefill_activity");
-      if (raw) {
-        const prefill = JSON.parse(raw);
-        localStorage.removeItem("saarathi_prefill_activity");
-        setShowNew(true);
-        toast.info("Pre-filled from chat context");
-        // Store prefill for the dialog to consume
-        localStorage.setItem(
-          "saarathi_prefill_pending",
-          JSON.stringify(prefill),
-        );
-      }
-    } catch {}
-  }, []);
-
   const availableGroups =
     messengerGroups.length > 0 ? messengerGroups : SAMPLE_GROUPS;
   const availableUsers = messengerUsers;
@@ -1581,7 +1403,6 @@ export default function ActivitiesPage() {
 
   function handleCreate(a: Activity) {
     setActivities((prev) => [a, ...prev]);
-    toast.success("Action created");
   }
 
   function handleStatusChange(id: string) {
@@ -1596,29 +1417,6 @@ export default function ActivitiesPage() {
     setActivities((prev) =>
       prev.map((a) => (a.id === id ? { ...a, messengerSent: true } : a)),
     );
-  }
-
-  function handleNudge(activity: Activity, message?: string) {
-    const key = activity.chatThreadId ?? "group_g1";
-    const reminderText =
-      message ||
-      `⏰ Reminder: ${activity.title} — due ${activity.deadline || activity.dateTime}`;
-    const reminder = {
-      id: `nudge_${Date.now()}`,
-      senderId: "me",
-      senderName: "You",
-      content: reminderText,
-      msgType: "text",
-      timestamp: Date.now(),
-    };
-    try {
-      const stored = JSON.parse(
-        localStorage.getItem("saarathi_messages") || "{}",
-      );
-      stored[key] = [...(stored[key] ?? []), reminder];
-      localStorage.setItem("saarathi_messages", JSON.stringify(stored));
-    } catch {}
-    toast.success("Reminder sent to chat");
   }
 
   const counts = useMemo(
@@ -1727,8 +1525,7 @@ export default function ActivitiesPage() {
                     No activities yet
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Create tasks from chat using AI 💬 — open Messenger and tap
-                    'Create Task'
+                    Create your first activity using the button above.
                   </p>
                 </motion.div>
               ) : (
@@ -1740,85 +1537,11 @@ export default function ActivitiesPage() {
                       index={i}
                       onStatusChange={handleStatusChange}
                       onSendToMessenger={setMessengerTarget}
-                      onNudge={handleNudge}
                     />
                   ))}
                 </div>
               )}
             </AnimatePresence>
-
-            {/* From Conversations section */}
-            <div
-              className="mt-6"
-              data-ocid="activity.from_conversations.section"
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-5 h-5 rounded bg-blue-500 flex items-center justify-center">
-                  <span className="text-[10px] text-white">💬</span>
-                </div>
-                <h3 className="font-semibold text-foreground text-sm">
-                  From Conversations
-                </h3>
-                <span className="text-xs text-muted-foreground ml-auto">
-                  Chat-extracted tasks
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {[
-                  {
-                    id: "fc1",
-                    title: "Send homework PDF to parents",
-                    from: "Class 3",
-                    assignee: "You",
-                    due: "Today",
-                    overdue: false,
-                  },
-                  {
-                    id: "fc2",
-                    title: "Confirm parent-teacher meeting",
-                    from: "School Group",
-                    assignee: "You",
-                    due: "Tomorrow",
-                    overdue: false,
-                  },
-                  {
-                    id: "fc3",
-                    title: "Review Q3 invoice",
-                    from: "Finance Team",
-                    assignee: "Ravi Kumar",
-                    due: "Yesterday",
-                    overdue: true,
-                  },
-                ].map((t, i) => (
-                  <div
-                    key={t.id}
-                    className={`flex items-start gap-3 p-3 rounded-xl border bg-white ${
-                      t.overdue
-                        ? "border-red-200 animate-urgent-pulse"
-                        : "border-blue-100"
-                    }`}
-                    data-ocid={`activity.from_chat.item.${i + 1}`}
-                  >
-                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-[10px]">💬</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {t.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        From: {t.from} · {t.assignee} · Due: {t.due}
-                        {t.overdue && (
-                          <span className="ml-1 text-red-500 font-medium">
-                            (Overdue)
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </TabsContent>
 
           <TabsContent value="scheduler" data-ocid="activity.panel">
