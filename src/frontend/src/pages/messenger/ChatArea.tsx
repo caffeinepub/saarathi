@@ -1024,6 +1024,14 @@ export default function ChatArea({
   const [showShareDoc, setShowShareDoc] = useState(false);
   const [showAIReply, setShowAIReply] = useState(false);
   const [aiReplyText, setAIReplyText] = useState("");
+  const [showCommitmentHint, setShowCommitmentHint] = useState(false);
+  const [commitmentText, setCommitmentText] = useState("");
+  const [showAutoInvoice, setShowAutoInvoice] = useState(false);
+  const [autoInvoiceData, setAutoInvoiceData] = useState<{
+    client: string;
+    amount: number;
+    basedOnPrevious: boolean;
+  } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const msgCount = messages.length;
@@ -1034,6 +1042,102 @@ export default function ChatArea({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [msgCount]);
+
+  // Reset hints when chat changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: currentChat is a prop, intentional
+  useEffect(() => {
+    setShowCommitmentHint(false);
+    setShowAutoInvoice(false);
+    setAutoInvoiceData(null);
+  }, [currentChat]);
+
+  function markCommitmentActed(text: string) {
+    try {
+      const existing = JSON.parse(
+        localStorage.getItem("saarathi_commitments") || "[]",
+      );
+      const updated = existing.map(
+        (c: { text: string; timestamp: number; acted: boolean }) =>
+          c.text === text ? { ...c, acted: true } : c,
+      );
+      localStorage.setItem("saarathi_commitments", JSON.stringify(updated));
+    } catch {}
+  }
+
+  function computeAutoInvoice(msgText: string): {
+    client: string;
+    amount: number;
+    basedOnPrevious: boolean;
+  } {
+    const chatContext = messages
+      .slice(-5)
+      .map((m) => m.content)
+      .join(" ");
+    const companyMatch = chatContext.match(
+      /\b[A-Z][a-z]+(?:\s+(?:Industries|Pvt|Ltd|Exports|Trading|Co|Group|Enterprises))\b/g,
+    );
+    const clientName = companyMatch?.[0] ?? "";
+
+    try {
+      const storedDocs = JSON.parse(
+        localStorage.getItem("saarathi_business_docs") || "[]",
+      );
+      const storedClients = JSON.parse(
+        localStorage.getItem("saarathi_clients") || "[]",
+      );
+      const clientRec = storedClients.find(
+        (c: { name: string; id: string }) =>
+          clientName &&
+          c.name
+            .toLowerCase()
+            .includes(clientName.toLowerCase().split(" ")[0].toLowerCase()),
+      );
+      if (clientRec) {
+        const clientInvoices = storedDocs.filter(
+          (d: { type: string; clientId: string }) =>
+            d.type === "invoice" && d.clientId === clientRec.id,
+        );
+        if (clientInvoices.length > 0) {
+          const last = clientInvoices[clientInvoices.length - 1];
+          const total = last.lineItems.reduce(
+            (s: number, i: { qty: number; rate: number; gstRate: number }) =>
+              s + i.qty * i.rate * (1 + i.gstRate / 100),
+            0,
+          );
+          if (total > 0)
+            return {
+              client: clientRec.name,
+              amount: total,
+              basedOnPrevious: true,
+            };
+        }
+      }
+    } catch {}
+
+    const amountMatch = msgText.match(
+      /₹\s*(\d[\d,]*)|([\d]+)\s*(?:rs|rupees|k\b)/i,
+    );
+    if (amountMatch) {
+      const raw = (amountMatch[1] || amountMatch[2]).replace(/,/g, "");
+      const isK = raw.toLowerCase().endsWith("k");
+      const numStr = isK ? raw.slice(0, -1) : raw;
+      const amt = isK
+        ? Number.parseInt(numStr) * 1000
+        : Number.parseInt(numStr);
+      if (amt > 0)
+        return {
+          client: clientName || "Client",
+          amount: amt,
+          basedOnPrevious: false,
+        };
+    }
+
+    return {
+      client: clientName || "Client",
+      amount: 10000,
+      basedOnPrevious: false,
+    };
+  }
 
   if (!currentChat) {
     return (
@@ -1224,6 +1328,35 @@ export default function ChatArea({
     setText("");
     setPendingFile(null);
     setIsSending(false);
+
+    // Detect commitment intent
+    const lowerContent = content.toLowerCase();
+    const commitmentKeywords = [
+      "i will",
+      "will send",
+      "tomorrow",
+      "later",
+      "i'll",
+      "i'll send",
+    ];
+    if (commitmentKeywords.some((k) => lowerContent.includes(k))) {
+      try {
+        const existing = JSON.parse(
+          localStorage.getItem("saarathi_commitments") || "[]",
+        );
+        existing.push({ text: content, timestamp: Date.now(), acted: false });
+        localStorage.setItem("saarathi_commitments", JSON.stringify(existing));
+      } catch {}
+      setCommitmentText(content);
+      setShowCommitmentHint(true);
+    }
+
+    // Detect invoice/payment intent
+    if (lowerContent.includes("invoice") || lowerContent.includes("payment")) {
+      const invoiceData = computeAutoInvoice(content);
+      setAutoInvoiceData(invoiceData);
+      setShowAutoInvoice(true);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1522,6 +1655,170 @@ export default function ChatArea({
                     💡 {s}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {/* Commitment hint */}
+            {showCommitmentHint && (
+              <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg bg-amber-950/40 border border-amber-700/40 text-amber-300 text-xs">
+                <span>⚠</span>
+                <span className="flex-1">Create follow-up task?</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    markCommitmentActed(commitmentText);
+                    setShowCommitmentHint(false);
+                    onNavigate?.("activities");
+                  }}
+                  className="px-2 py-0.5 bg-amber-500 text-white rounded-md hover:bg-amber-600 text-xs font-semibold"
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCommitmentHint(false)}
+                  className="px-2 py-0.5 bg-transparent text-amber-400 hover:text-amber-200 text-xs"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {/* Auto-invoice card */}
+            {showAutoInvoice && autoInvoiceData && (
+              <div
+                className="mb-2 p-3 rounded-xl border border-amber-500/40 bg-amber-950/30"
+                data-ocid="messenger.auto_invoice.card"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-amber-400 font-semibold text-sm">
+                    💰 Invoice Draft Ready
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAutoInvoice(false)}
+                    className="ml-auto text-stone-500 hover:text-stone-300 text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="text-xs text-stone-300 space-y-0.5 mb-2">
+                  <div>
+                    Client:{" "}
+                    <span className="text-white font-medium">
+                      {autoInvoiceData.client}
+                    </span>
+                  </div>
+                  <div>
+                    Amount:{" "}
+                    <span className="text-amber-300 font-bold">
+                      ₹
+                      {autoInvoiceData.amount.toLocaleString("en-IN", {
+                        maximumFractionDigits: 0,
+                      })}
+                    </span>
+                  </div>
+                  {autoInvoiceData.basedOnPrevious && (
+                    <div className="text-stone-500 italic">
+                      Based on previous invoice
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        const storedDocs2 = JSON.parse(
+                          localStorage.getItem("saarathi_business_docs") ||
+                            "[]",
+                        );
+                        const storedClients2 = JSON.parse(
+                          localStorage.getItem("saarathi_clients") || "[]",
+                        );
+                        let clientId2 = storedClients2.find(
+                          (c: { name: string; id: string }) =>
+                            c.name === autoInvoiceData.client,
+                        )?.id;
+                        if (!clientId2) {
+                          clientId2 = `client_auto_${Date.now()}`;
+                          storedClients2.push({
+                            id: clientId2,
+                            name: autoInvoiceData.client,
+                            state: "Maharashtra",
+                            placeOfSupply: "Maharashtra",
+                            phone: "",
+                            email: "",
+                            gstin: "",
+                            address: "",
+                          });
+                          localStorage.setItem(
+                            "saarathi_clients",
+                            JSON.stringify(storedClients2),
+                          );
+                        }
+                        const invNum = `INV-${String(storedDocs2.filter((d: { type: string }) => d.type === "invoice").length + 1).padStart(3, "0")}`;
+                        const newInv = {
+                          id: `inv_auto_${Date.now()}`,
+                          type: "invoice",
+                          number: invNum,
+                          date: new Date().toISOString().slice(0, 10),
+                          dueDate: new Date(
+                            Date.now() + 30 * 24 * 60 * 60 * 1000,
+                          )
+                            .toISOString()
+                            .slice(0, 10),
+                          clientId: clientId2,
+                          status: "sent",
+                          notes: "",
+                          lineItems: [
+                            {
+                              id: "1",
+                              description: "Services",
+                              qty: 1,
+                              rate: autoInvoiceData.amount,
+                              gstRate: 18,
+                            },
+                          ],
+                        };
+                        storedDocs2.push(newInv);
+                        localStorage.setItem(
+                          "saarathi_business_docs",
+                          JSON.stringify(storedDocs2),
+                        );
+                        onSendMessage(
+                          `📄 Invoice ${invNum} sent to ${autoInvoiceData.client}`,
+                        );
+                      } catch {}
+                      setShowAutoInvoice(false);
+                      toast.success("Invoice created and sent");
+                    }}
+                    className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors"
+                    data-ocid="messenger.auto_invoice.send_button"
+                  >
+                    Send Now
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        localStorage.setItem(
+                          "saarathi_prefill_invoice",
+                          JSON.stringify({
+                            clientName: autoInvoiceData.client,
+                            amount: autoInvoiceData.amount,
+                          }),
+                        );
+                      } catch {}
+                      setShowAutoInvoice(false);
+                      onNavigate?.("business");
+                    }}
+                    className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-stone-700 hover:bg-stone-600 text-white transition-colors"
+                    data-ocid="messenger.auto_invoice.edit_button"
+                  >
+                    Edit
+                  </button>
+                </div>
               </div>
             )}
 

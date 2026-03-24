@@ -31,6 +31,99 @@ interface MessengerPageProps {
 }
 
 // ─── Today Summary Strip ──────────────────────────────────────────────────────
+function CommitmentBanner({
+  onNavigate,
+}: { onNavigate?: (page: string) => void }) {
+  const [pendingCommitment, setPendingCommitment] = useState<{
+    text: string;
+    timestamp: number;
+  } | null>(null);
+
+  function checkCommitments() {
+    try {
+      const items = JSON.parse(
+        localStorage.getItem("saarathi_commitments") || "[]",
+      );
+      const twentyMinsAgo = Date.now() - 20 * 60 * 1000;
+      const stale = items.find(
+        (c: { text: string; timestamp: number; acted: boolean }) =>
+          !c.acted && c.timestamp < twentyMinsAgo,
+      );
+      setPendingCommitment(stale ?? null);
+    } catch {
+      setPendingCommitment(null);
+    }
+  }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: checkCommitments is stable
+  useEffect(() => {
+    checkCommitments();
+    const interval = setInterval(checkCommitments, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!pendingCommitment) return null;
+
+  function dismiss() {
+    try {
+      const items = JSON.parse(
+        localStorage.getItem("saarathi_commitments") || "[]",
+      );
+      const updated = items.map(
+        (c: { text: string; timestamp: number; acted: boolean }) =>
+          c.text === pendingCommitment?.text
+            ? { ...c, timestamp: Date.now() }
+            : c,
+      );
+      localStorage.setItem("saarathi_commitments", JSON.stringify(updated));
+    } catch {}
+    setPendingCommitment(null);
+  }
+
+  function createTask() {
+    try {
+      const items = JSON.parse(
+        localStorage.getItem("saarathi_commitments") || "[]",
+      );
+      const updated = items.map(
+        (c: { text: string; timestamp: number; acted: boolean }) =>
+          c.text === pendingCommitment?.text ? { ...c, acted: true } : c,
+      );
+      localStorage.setItem("saarathi_commitments", JSON.stringify(updated));
+    } catch {}
+    setPendingCommitment(null);
+    onNavigate?.("activities");
+  }
+
+  return (
+    <div
+      className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0 bg-orange-950/50 border-b border-orange-700/40"
+      data-ocid="messenger.commitment_banner"
+    >
+      <span className="text-orange-300 text-sm">⚠</span>
+      <span className="text-orange-200 text-xs flex-1 truncate">
+        You said you'd follow up — still pending
+      </span>
+      <button
+        type="button"
+        onClick={createTask}
+        className="text-xs px-2.5 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded-md font-semibold whitespace-nowrap"
+        data-ocid="messenger.commitment_banner.create_task.button"
+      >
+        Create Task
+      </button>
+      <button
+        type="button"
+        onClick={dismiss}
+        className="text-xs px-2 py-1 text-orange-400 hover:text-orange-200 whitespace-nowrap"
+        data-ocid="messenger.commitment_banner.remind_later.button"
+      >
+        Remind Later
+      </button>
+    </div>
+  );
+}
+
 function TodaySummaryStrip({
   messages,
   currentUserId,
@@ -541,6 +634,9 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
       className="h-full flex flex-col overflow-hidden relative"
       data-ocid="messenger.panel"
     >
+      {/* Commitment Banner */}
+      <CommitmentBanner onNavigate={onNavigate} />
+
       {/* Today Summary Strip */}
       <TodaySummaryStrip
         messages={messages}

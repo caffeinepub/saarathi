@@ -1,51 +1,39 @@
-# SAARATHI — Messenger-First Restructure
+# SAARATHI — Proactive AI & Money Snapshot Update
 
 ## Current State
-- App opens on Dashboard (AppLayout default page = "dashboard")
-- Messenger is one of 6 nav tabs: Dashboard, Messenger, 5W Activities, Business Suite, AI Assistant, Settings
-- ChatArea has static AI action bar with fixed buttons: Reply, Create Task, Create Invoice
-- ActivitiesPage shows tasks without urgency visuals or "From Conversations" section
-- Business invoices lack Mark as Paid, Send Reminder, due countdown
-- Nudge button sends a basic reminder message with no tone options
-- AI Assistant is a prominent top-level nav item
-- Subgroup chats show context header but no workspace tabs (Chat/Tasks/Files/Payments)
-- No Today Summary strip at top of Messenger
+- Messenger is home with Today Summary strip showing pending/overdue/due/unread
+- ChatArea has static AI action bar, smart typing suggestions, and intent-based buttons
+- BusinessSuitePage stores invoices in localStorage as `saarathi_business_docs`
+- No commitment tracking, no proactive banners, no monthly money snapshot
+- Today Summary shows hardcoded fallback amounts when no real data exists
 
 ## Requested Changes (Diff)
 
 ### Add
-- Today Summary strip at top of MessengerPage (above sidebar+chat layout): shows 🔴 Pending Actions count, ⚠️ Overdue count, 💰 ₹ Due total, 💬 Unread count — each clickable to navigate
-- Subgroup workspace tabs inside ChatArea when a group is selected: Chat | Tasks | Files | Payments (default: Chat); Tasks tab filters activities by groupId; Payments tab shows invoices linked to group
-- Dynamic AI action bar: analyze last message content, show context-aware button (Schedule Meeting if "meet"/"call", Create Task if "send"/"review", Create Invoice if "invoice"/"payment"), always keep AI Reply
-- Smart inline typing suggestions: chip row above input showing "Reply politely" / "Ask for payment" / "Schedule meeting" based on typed text; click to fill draft
-- Urgency visual system in ActivitiesPage: overdue items get red border + pulse animation + "Overdue by N days" label; today items get amber highlight + "Due today" label
-- "From Conversations" section in ActivitiesPage below existing tasks list, showing chat-linked tasks grouped by subgroup
-- Nudge modal with tone options: Gentle / Urgent / Custom before sending reminder into chat
-- Mark as Paid button on invoices in BusinessSuitePage
-- Send Reminder button on invoices → posts message into linked chat
-- Due countdown label on invoices: "Due in N days" or "Overdue by N days"
-- Empty state guidance improvements: Chat empty state, Activities empty state, Business empty state
-- Persistent context strip on subgroup chat: shows breadcrumb path (📂 School / Class 3) + 👥 N members · N pending actions · ₹N pending
+- **Stage 1 commitment hint**: After a message is sent, if it contains commitment words ("I will", "will send", "tomorrow", "later", "I'll"), show inline suggestion row below composer: ⚠ "Create follow-up task?" [Yes] [Dismiss]. Tapping Yes stores commitment as acted=true and navigates to activities. Dismissing sets it dismissed without creating task.
+- **localStorage commitment storage**: Save detected commitments as `saarathi_commitments` array of {text, timestamp, acted: boolean}.
+- **Stage 2 banner**: In MessengerPage (or App-level), on mount check `saarathi_commitments` for any entries where acted=false AND timestamp is older than 20 minutes. If found, show a dismissible banner at the top of the app (below Today Summary): ⚠ "You said you'd follow up — still pending" [Create Task] [Remind Later]. "Create Task" marks acted=true and navigates to activities. "Remind Later" snoozes (sets timestamp = now, so it won't trigger again for another 20 min).
+- **Auto-Invoice card**: When the last sent message contains "invoice" or "payment", show an inline action card below the composer (above AI action bar): 💰 Invoice Draft Ready, Client: [detected name or last client], Amount: ₹XX,XXX. Amount priority: (1) last invoice in localStorage for that client, (2) amount regex from message, (3) default ₹10,000. Microcopy "Based on previous invoice" if using prior invoice amount. [Send Now] creates invoice in localStorage, posts a chat message "📄 Invoice [number] sent to [client]", and dismisses card. [Edit] navigates to business with prefill and dismisses card.
+- **Monthly Money Snapshot in BusinessSuitePage**: Add a MoneySnapshot card at the top of Business Suite. Hybrid logic: if `saarathi_business_docs` has any invoices from current month → calculate real Expected/Pending/Overdue. Otherwise show seeded values ₹1.2L / ₹68k / ₹18k with label "Sample data — start creating invoices". Auto-switches once real invoices exist.
+- **Trend Indicator**: Below money snapshot, show ↑ "+12% from last month" (simulated initially; if real data has prior month comparison, calculate actual).
 
 ### Modify
-- AppLayout: change default activePage from "dashboard" to "messenger"
-- AppLayout NAV_ITEMS: de-emphasize AI Assistant (move to bottom, smaller style, or mark as secondary)
-- MessengerPage: add Today Summary strip at top spanning full width above the sidebar+chat area
-- ChatArea: make AI action bar dynamic based on last message content; add typing suggestion chips; add workspace tabs for group chats
-- ActivitiesPage: add urgency visuals + labels + "From Conversations" section
-- BusinessSuitePage: add Mark as Paid, Send Reminder, due countdown to invoice list items
+- **MessengerPage.tsx**: Add Stage 2 banner check on mount. Import and render `CommitmentBanner` component above Today Summary strip.
+- **ChatArea.tsx**: After `handleSend`, run commitment detection on the sent text and save to localStorage if match found; show Stage 1 hint row. Add auto-invoice card logic using last message content.
+- **BusinessSuitePage.tsx**: Add `MoneySnapshot` component at page top with hybrid logic and trend indicator.
 
 ### Remove
-- Nothing removed — only behavior enhancement and additions
+- Nothing removed; purely additive.
 
 ## Implementation Plan
-1. AppLayout.tsx: set default page to "messenger"; move AI nav item to bottom/de-emphasize it visually
-2. MessengerPage.tsx: add TodaySummaryStrip component above the flex row (sidebar+chat), reading from localStorage for counts
-3. ChatArea.tsx: 
-   a. Add workspace tabs (Chat/Tasks/Files/Payments) when currentChat.type === "group"
-   b. Make AI action bar dynamic — scan last message content for keywords
-   c. Add typing suggestion chips above input
-   d. Enhance subgroup context strip with breadcrumb + stats
-4. ActivitiesPage.tsx: add urgency CSS (red pulse for overdue, amber for today), due labels, "From Conversations" section
-5. BusinessSuitePage.tsx: add Mark as Paid toggle, Send Reminder button, due countdown badge on invoice rows
-6. NudgeModal: add tone selector (Gentle/Urgent/Custom) before sending nudge message
+1. In `ChatArea.tsx`:
+   - Add `pendingCommitment` state (null | {text, timestamp}) and `showCommitmentHint` boolean
+   - After `handleSend` resolves, check sent text for commitment keywords → if match, save to localStorage commitments and set `showCommitmentHint = true`
+   - Render commitment hint row between suggestions and file preview (or just above AI action bar): amber background, ⚠ text, Yes/Dismiss buttons
+   - Add `autoInvoiceCard` state: show card when last sent message contains invoice/payment keywords; card reads localStorage for last client invoice; [Send Now] creates doc + posts message; [Edit] prefills and navigates
+2. In `MessengerPage.tsx`:
+   - Add `CommitmentBanner` component: checks localStorage on mount + sets up 60s interval re-check
+   - Render above `TodaySummaryStrip`
+3. In `BusinessSuitePage.tsx`:
+   - Add `MoneySnapshot` component at top of the page, computing values from localStorage invoices with fallback to seed data
+   - Add trend indicator row below snapshot
