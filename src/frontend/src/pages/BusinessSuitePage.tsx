@@ -1943,6 +1943,23 @@ function DocListTab({
 }) {
   const [showForm, setShowForm] = useState(false);
   const [editDoc, setEditDoc] = useState<BusinessDoc | null>(null);
+
+  // Listen for prefill event from chat context (invoice only)
+  useEffect(() => {
+    if (type !== "invoice") return;
+    function handlePrefill(e: Event) {
+      const doc = (e as CustomEvent<BusinessDoc>).detail;
+      setEditDoc(doc);
+      setShowForm(true);
+    }
+    window.addEventListener("saarathi:open-invoice-prefill", handlePrefill);
+    return () =>
+      window.removeEventListener(
+        "saarathi:open-invoice-prefill",
+        handlePrefill,
+      );
+  }, [type]);
+
   const typeLabel =
     type === "invoice"
       ? "Invoice"
@@ -2609,45 +2626,54 @@ function MoneySnapshot() {
   } | null>(null);
 
   useEffect(() => {
-    try {
-      const docs = JSON.parse(
-        localStorage.getItem("saarathi_business_docs") || "[]",
-      );
-      const invoices = docs.filter(
-        (d: { type: string }) => d.type === "invoice",
-      );
-      const now = new Date();
-      const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-      const thisMonthInvoices = invoices.filter((d: { date: string }) =>
-        d.date?.startsWith(thisMonth),
-      );
+    function recalculate() {
+      try {
+        const docs = JSON.parse(
+          localStorage.getItem("saarathi_business_docs") || "[]",
+        );
+        const invoices = docs.filter(
+          (d: { type: string }) => d.type === "invoice",
+        );
+        const now = new Date();
+        const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        const thisMonthInvoices = invoices.filter((d: { date: string }) =>
+          d.date?.startsWith(thisMonth),
+        );
 
-      if (thisMonthInvoices.length > 0) {
-        const calcTotal = (d: {
-          lineItems: Array<{ qty: number; rate: number; gstRate: number }>;
-        }) =>
-          d.lineItems.reduce(
-            (s, i) => s + i.qty * i.rate * (1 + i.gstRate / 100),
+        if (thisMonthInvoices.length > 0) {
+          const calcTotal = (d: {
+            lineItems: Array<{ qty: number; rate: number; gstRate: number }>;
+          }) =>
+            d.lineItems.reduce(
+              (s, i) => s + i.qty * i.rate * (1 + i.gstRate / 100),
+              0,
+            );
+
+          const expected = thisMonthInvoices.reduce(
+            (s: number, d: any) => s + calcTotal(d),
             0,
           );
+          const pending = thisMonthInvoices
+            .filter((d: { status: string }) => d.status !== "paid")
+            .reduce((s: number, d: any) => s + calcTotal(d), 0);
+          const overdue = thisMonthInvoices
+            .filter((d: { status: string; dueDate?: string }) => {
+              if (d.status === "paid") return false;
+              if (!d.dueDate) return false;
+              return new Date(d.dueDate) < now;
+            })
+            .reduce((s: number, d: any) => s + calcTotal(d), 0);
 
-        const expected = thisMonthInvoices.reduce(
-          (s: number, d: any) => s + calcTotal(d),
-          0,
-        );
-        const pending = thisMonthInvoices
-          .filter((d: { status: string }) => d.status !== "paid")
-          .reduce((s: number, d: any) => s + calcTotal(d), 0);
-        const overdue = thisMonthInvoices
-          .filter((d: { status: string; dueDate?: string }) => {
-            if (d.status === "paid") return false;
-            if (!d.dueDate) return false;
-            return new Date(d.dueDate) < now;
-          })
-          .reduce((s: number, d: any) => s + calcTotal(d), 0);
-
-        setData({ expected, pending, overdue, isReal: true });
-      } else {
+          setData({ expected, pending, overdue, isReal: true });
+        } else {
+          setData({
+            expected: 120000,
+            pending: 68000,
+            overdue: 18000,
+            isReal: false,
+          });
+        }
+      } catch {
         setData({
           expected: 120000,
           pending: 68000,
@@ -2655,14 +2681,11 @@ function MoneySnapshot() {
           isReal: false,
         });
       }
-    } catch {
-      setData({
-        expected: 120000,
-        pending: 68000,
-        overdue: 18000,
-        isReal: false,
-      });
     }
+    recalculate();
+    window.addEventListener("saarathi:docs-updated", recalculate);
+    return () =>
+      window.removeEventListener("saarathi:docs-updated", recalculate);
   }, []);
 
   if (!data) return null;
@@ -2733,13 +2756,73 @@ export default function BusinessSuitePage() {
     dataStore.setDocs(docs);
   }, [docs]);
 
+  // Sync docs and clients when updated externally (e.g. via Send Now in chat)
+  useEffect(() => {
+    function handleDocsUpdated() {
+      try {
+        const raw = localStorage.getItem("saarathi_business_docs");
+        if (raw) setDocs(JSON.parse(raw));
+        const rawClients = localStorage.getItem("saarathi_clients");
+        if (rawClients) setClients(JSON.parse(rawClients));
+      } catch {}
+    }
+    window.addEventListener("saarathi:docs-updated", handleDocsUpdated);
+    return () =>
+      window.removeEventListener("saarathi:docs-updated", handleDocsUpdated);
+  }, []);
+
   // Pre-fill invoice from chat context
   useEffect(() => {
     try {
       const raw = localStorage.getItem("saarathi_prefill_invoice");
       if (raw) {
         localStorage.removeItem("saarathi_prefill_invoice");
-        toast.info("Pre-filled from chat context");
+        const prefill = JSON.parse(raw) as {
+          clientName: string;
+          amount: number;
+        };
+        const clientsRaw = localStorage.getItem("saarathi_clients");
+        const clientsList: Array<{ id: string; name: string }> = clientsRaw
+          ? JSON.parse(clientsRaw)
+          : INITIAL_CLIENTS;
+        let client = clientsList.find(
+          (c) => c.name.toLowerCase() === prefill.clientName.toLowerCase(),
+        );
+        if (!client) client = clientsList[0];
+        const clientId = client?.id ?? "c1";
+        const newDoc: BusinessDoc = {
+          id: `inv_prefill_${Date.now()}`,
+          type: "invoice",
+          number: `INV-${String(Date.now()).slice(-4)}`,
+          clientId,
+          date: new Date().toISOString().slice(0, 10),
+          dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .slice(0, 10),
+          validity: "",
+          businessGstin: "",
+          placeOfSupply: "",
+          status: "draft",
+          lineItems: [
+            {
+              id: "li1",
+              productId: "",
+              description: "Services",
+              hsnSac: "",
+              qty: 1,
+              unit: "Nos",
+              rate: prefill.amount,
+              gstRate: 18,
+            },
+          ],
+          notes: "",
+          terms: "",
+          coverMessage: "",
+          createdAt: Date.now(),
+        };
+        window.dispatchEvent(
+          new CustomEvent("saarathi:open-invoice-prefill", { detail: newDoc }),
+        );
       }
     } catch {}
   }, []);

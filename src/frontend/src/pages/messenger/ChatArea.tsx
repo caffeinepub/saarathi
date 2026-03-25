@@ -1786,6 +1786,9 @@ export default function ChatArea({
                           "saarathi_business_docs",
                           JSON.stringify(storedDocs2),
                         );
+                        window.dispatchEvent(
+                          new CustomEvent("saarathi:docs-updated"),
+                        );
                         onSendMessage(
                           `📄 Invoice ${invNum} sent to ${autoInvoiceData.client}`,
                         );
