@@ -20,6 +20,23 @@ export const AVATAR_COLORS = [
   "bg-amber-600",
 ];
 
+export const SAMPLE_DEMO_KEYS = {
+  groupIds: ["g1", "g1-sub1", "g2", "g3"],
+  chatKeys: [
+    "group_g1",
+    "group_g1-sub1",
+    "group_g2",
+    "group_g3",
+    "dm_priya",
+    "dm_rajesh",
+    "dm_ravi",
+    "dm_meena",
+    "dm_ankit",
+    "dm_sunita",
+  ],
+  userIds: ["priya", "rajesh", "meena", "ankit", "sunita", "ravi"],
+};
+
 export function getAvatarColor(id: string): string {
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
@@ -39,6 +56,7 @@ export function makeSampleGroups(currentUserId: string): LocalGroup[] {
       admins: [currentUserId],
       onlyAdminsCanPost: false,
       depth: 0,
+      isDemo: true,
     },
     {
       id: "g1-sub1",
@@ -50,6 +68,7 @@ export function makeSampleGroups(currentUserId: string): LocalGroup[] {
       onlyAdminsCanPost: false,
       parentGroupId: "g1",
       depth: 1,
+      isDemo: true,
     },
     {
       id: "g2",
@@ -60,6 +79,7 @@ export function makeSampleGroups(currentUserId: string): LocalGroup[] {
       admins: ["meena"],
       onlyAdminsCanPost: true,
       depth: 0,
+      isDemo: true,
     },
     {
       id: "g3",
@@ -70,6 +90,7 @@ export function makeSampleGroups(currentUserId: string): LocalGroup[] {
       admins: [currentUserId, "meena"],
       onlyAdminsCanPost: false,
       depth: 0,
+      isDemo: true,
     },
   ];
 }

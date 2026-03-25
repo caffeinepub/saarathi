@@ -1,10 +1,12 @@
 import {
   Bot,
   Briefcase,
+  CheckCircle,
   CheckSquare,
   ChevronRight,
   Compass,
   MessageSquare,
+  Star,
   Users,
   Zap,
 } from "lucide-react";
@@ -15,6 +17,8 @@ interface LandingPageProps {
   onGetStarted: () => void;
   onSignIn: () => void;
 }
+
+const WA_LINK = "https://wa.me/919822422123?text=Hi, I want a demo of SAARATHI";
 
 const SLIDES = [
   {
@@ -223,27 +227,6 @@ const FEATURES = [
   },
 ];
 
-const USE_CASES = [
-  {
-    emoji: "🏭",
-    title: "Manufacturing Business",
-    scenario:
-      "Rajesh creates a delivery task for his factory team, attaches the purchase order, and sends the GST invoice to the client — all from one platform.",
-  },
-  {
-    emoji: "🛒",
-    title: "Trading Company",
-    scenario:
-      "Priya uses AI to create multiple client tasks at once, tracks their status on the scheduler, and shares daily summaries with her team on Messenger.",
-  },
-  {
-    emoji: "💼",
-    title: "Consulting Firm",
-    scenario:
-      "Amit manages client proposals, sends GST estimates, and coordinates project tasks — with full GST compliance built in at every step.",
-  },
-];
-
 const STATS = [
   { label: "4 Powerful Modules", icon: Zap },
   { label: "GST Compliant", icon: CheckSquare },
@@ -270,6 +253,49 @@ const HOW_IT_WORKS = [
     desc: "Use natural language to create tasks, generate GST invoices, and coordinate your team — all from one chat panel.",
     color: "text-emerald-400",
   },
+];
+
+const TESTIMONIALS = [
+  {
+    quote: "Now I don't forget follow-ups anymore",
+    name: "Rahul S.",
+    role: "School Admin",
+  },
+  {
+    quote: "Much better than managing everything on WhatsApp",
+    name: "Priya M.",
+    role: "Business Owner",
+  },
+  {
+    quote: "Invoice creation now takes seconds instead of minutes",
+    name: "Amit K.",
+    role: "Consultant",
+  },
+];
+
+const DEMO_EXAMPLES = [
+  {
+    user: "You: Send report tomorrow",
+    ai: "SAARATHI: Create follow-up task ✅",
+    caption: "Now it never gets missed",
+  },
+  {
+    user: "Client: Send invoice",
+    ai: "SAARATHI: Invoice draft ready — [Send Now]",
+    caption: "One tap → sent",
+  },
+  {
+    user: "No reply for 2 days?",
+    ai: "SAARATHI: Send reminder directly from chat",
+    caption: "Never chase manually again",
+  },
+];
+
+const DIFF_POINTS = [
+  "Works like WhatsApp (no learning needed)",
+  "Adds structure without complexity",
+  "AI actually takes action — not just replies",
+  "Built for real-world Indian workflows",
 ];
 
 export default function LandingPage({
@@ -324,7 +350,7 @@ export default function LandingPage({
       </nav>
 
       {/* Hero */}
-      <section className="px-6 py-20 md:py-28 text-center max-w-4xl mx-auto">
+      <section className="px-6 py-16 md:py-24 text-center max-w-4xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
@@ -333,26 +359,27 @@ export default function LandingPage({
           <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/25 rounded-full px-4 py-1.5 text-sm text-amber-400 mb-8">
             <span>🇮🇳</span> Built for Indian Small Businesses
           </div>
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-6 leading-[1.05]">
-            Your Business,
-            <br />
-            <span className="text-amber-500">Guided Forward.</span>
+          <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-6 leading-[1.1]">
+            Turn WhatsApp Conversations into{" "}
+            <span className="text-amber-500">Tasks, Payments & Follow-Ups</span>{" "}
+            Automatically
           </h1>
-          <p className="text-lg md:text-xl text-white/50 max-w-2xl mx-auto mb-4 leading-relaxed">
-            SAARATHI brings your team, tasks, GST invoices, and AI assistance
-            together in one platform purpose-built for Indian businesses.
+          <p className="text-lg md:text-xl text-white/55 max-w-2xl mx-auto mb-4 leading-relaxed">
+            SAARATHI helps schools, societies & small businesses stop missing
+            work, payments, and commitments — without leaving chat.
           </p>
-          <p className="text-sm text-white/30 mb-10">
-            Messenger · 5W Activities · GST Business Suite · AI Assistant
+          <p className="text-sm text-white/30 mb-8">
+            Built by Tattva Innovation for Indian businesses managing everything
+            on WhatsApp
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-4">
             <button
               type="button"
-              onClick={onGetStarted}
+              onClick={() => window.open(WA_LINK, "_blank")}
               className="flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-bold px-9 py-4 rounded-2xl text-lg transition-all hover:scale-[1.02] shadow-lg shadow-amber-900/40"
               data-ocid="landing.primary_button"
             >
-              Start for Free <ChevronRight className="w-5 h-5" />
+              📲 Book Free 5-Min Demo <ChevronRight className="w-5 h-5" />
             </button>
             <button
               type="button"
@@ -363,6 +390,9 @@ export default function LandingPage({
               Sign In
             </button>
           </div>
+          <p className="text-amber-400 text-sm font-semibold">
+            ⚡ Only onboarding 5 early users this week
+          </p>
         </motion.div>
       </section>
 
@@ -389,64 +419,64 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* Chat→AI→Action→Business Flow Strip */}
-      <section className="px-6 py-12 max-w-5xl mx-auto">
-        <div className="text-center mb-8">
+      {/* Problem Section */}
+      <section className="px-6 py-14 max-w-3xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="bg-[#1a1a1a] border border-white/8 rounded-3xl p-8 md:p-10"
+        >
+          <h2 className="text-2xl md:text-3xl font-black text-white mb-6">
+            If you're using WhatsApp for work…{" "}
+            <span className="text-red-400">things are slipping.</span>
+          </h2>
+          <ul className="space-y-3 mb-6">
+            {[
+              "Important messages get lost",
+              "Follow-ups are forgotten",
+              "Payments are not tracked properly",
+              "You keep switching between chat, notes, and Excel",
+            ].map((item) => (
+              <li
+                key={item}
+                className="flex items-start gap-3 text-white/60 text-base"
+              >
+                <span className="text-red-400 text-lg flex-shrink-0">❌</span>
+                {item}
+              </li>
+            ))}
+          </ul>
+          <p className="text-amber-400 font-bold text-lg">
+            That's where SAARATHI comes in.
+          </p>
+        </motion.div>
+      </section>
+
+      {/* Solution / Flow Section */}
+      <section className="px-6 py-14 max-w-5xl mx-auto">
+        <div className="text-center mb-10">
           <div className="text-xs font-bold tracking-widest text-amber-500/70 uppercase mb-3">
             The SAARATHI Flow
           </div>
-          <h2 className="text-2xl font-black text-white">How SAARATHI works</h2>
+          <h2 className="text-3xl font-black">
+            One simple change: Turn conversations into actions.
+          </h2>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 relative">
-          {[
-            {
-              icon: "💬",
-              step: "Chat",
-              sub: "Send a message in your group",
-              color: "from-blue-600/20 to-blue-500/10 border-blue-500/25",
-            },
-            {
-              icon: "✨",
-              step: "AI",
-              sub: "AI extracts context",
-              color: "from-purple-600/20 to-purple-500/10 border-purple-500/25",
-            },
-            {
-              icon: "📌",
-              step: "Action",
-              sub: "Task created automatically",
-              color: "from-amber-600/20 to-amber-500/10 border-amber-500/25",
-            },
-            {
-              icon: "💰",
-              step: "Business",
-              sub: "Invoice ready in seconds",
-              color: "from-green-600/20 to-green-500/10 border-green-500/25",
-            },
-          ].map((item, i) => (
-            <div
-              key={item.step}
-              className="relative flex flex-col items-center"
-            >
-              {i > 0 && (
-                <div className="hidden md:flex absolute -left-3 top-8 z-10 text-amber-500 text-lg font-bold select-none">
-                  →
-                </div>
-              )}
-              <div
-                className={`w-full bg-gradient-to-b ${item.color} border rounded-2xl p-5 text-center`}
-              >
-                <div className="text-3xl mb-2">{item.icon}</div>
-                <div className="font-black text-white text-lg mb-1">
-                  {item.step}
-                </div>
-                <div className="text-xs text-white/45 leading-relaxed">
-                  {item.sub}
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="flex flex-wrap items-center justify-center gap-2 text-2xl md:text-4xl font-black mb-8">
+          <span>💬 Message</span>
+          <span className="text-amber-500">→</span>
+          <span>✨ AI</span>
+          <span className="text-amber-500">→</span>
+          <span>📌 Task</span>
+          <span className="text-amber-500">→</span>
+          <span>💰 Payment</span>
         </div>
+        <p className="text-center text-white/50 text-base max-w-xl mx-auto leading-relaxed">
+          Type naturally like you do on WhatsApp. SAARATHI automatically creates
+          tasks, reminds you to follow up, generates invoices, and tracks
+          everything in one place.
+        </p>
       </section>
 
       {/* How It Works */}
@@ -458,7 +488,6 @@ export default function LandingPage({
           <h2 className="text-3xl font-black">Up and running in minutes</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-          {/* Connector line (desktop only) */}
           <div className="hidden md:block absolute top-10 left-[calc(16.67%+1rem)] right-[calc(16.67%+1rem)] h-px bg-gradient-to-r from-amber-500/30 via-blue-500/30 to-emerald-500/30" />
           {HOW_IT_WORKS.map((step, i) => (
             <motion.div
@@ -478,6 +507,44 @@ export default function LandingPage({
               </h3>
               <p className="text-sm text-white/45 leading-relaxed">
                 {step.desc}
+              </p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* Demo Use-Case Examples */}
+      <section className="px-6 py-14 max-w-5xl mx-auto">
+        <div className="text-center mb-10">
+          <div className="text-xs font-bold tracking-widest text-amber-500/70 uppercase mb-3">
+            Examples
+          </div>
+          <h2 className="text-3xl font-black">See it in 3 examples</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {DEMO_EXAMPLES.map((ex, i) => (
+            <motion.div
+              key={ex.caption}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1, duration: 0.4 }}
+              className="bg-[#1a1a1a] border border-white/8 rounded-2xl p-5 flex flex-col gap-3"
+            >
+              {/* User bubble */}
+              <div className="flex justify-end">
+                <div className="bg-amber-500/20 border border-amber-500/30 rounded-xl rounded-tr-none px-3 py-2 text-sm text-amber-200 max-w-[85%]">
+                  {ex.user}
+                </div>
+              </div>
+              {/* AI bubble */}
+              <div className="flex justify-start">
+                <div className="bg-purple-500/15 border border-purple-500/25 rounded-xl rounded-tl-none px-3 py-2 text-sm text-purple-200 max-w-[85%]">
+                  {ex.ai}
+                </div>
+              </div>
+              {/* Caption */}
+              <p className="text-center text-xs text-white/45 font-semibold mt-1 border-t border-white/6 pt-3">
+                ✅ {ex.caption}
               </p>
             </motion.div>
           ))}
@@ -530,6 +597,26 @@ export default function LandingPage({
               </motion.div>
             );
           })}
+        </div>
+      </section>
+
+      {/* Differentiation Section */}
+      <section className="px-6 py-14 max-w-3xl mx-auto">
+        <div className="text-center mb-10">
+          <h2 className="text-3xl font-black">Not another business app.</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {DIFF_POINTS.map((point) => (
+            <div
+              key={point}
+              className="flex items-start gap-3 bg-[#1a1a1a] border border-white/8 rounded-2xl p-5"
+            >
+              <CheckCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <span className="text-white/75 text-sm leading-relaxed">
+                {point}
+              </span>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -589,34 +676,46 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* Use Cases */}
+      {/* Testimonials / Social Proof */}
       <section className="px-6 py-14 max-w-5xl mx-auto">
         <div className="text-center mb-10">
           <div className="text-xs font-bold tracking-widest text-amber-500/70 uppercase mb-3">
-            Use Cases
+            Social Proof
           </div>
-          <h2 className="text-3xl font-black">Real businesses, real results</h2>
+          <h2 className="text-3xl font-black">
+            Early users are already saving time daily
+          </h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {USE_CASES.map((uc, i) => (
+          {TESTIMONIALS.map((t, i) => (
             <motion.div
-              key={uc.title}
+              key={t.name}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1, duration: 0.4 }}
-              className="bg-[#1a1a1a] border border-white/8 rounded-2xl p-6 hover:border-amber-500/25 transition-colors"
+              className="bg-[#1a1a1a] border border-white/8 rounded-2xl p-6 flex flex-col gap-3"
             >
-              <div className="text-4xl mb-4">{uc.emoji}</div>
-              <h3 className="font-bold text-white mb-2">{uc.title}</h3>
-              <p className="text-sm text-white/45 leading-relaxed">
-                {uc.scenario}
+              <div className="flex gap-0.5">
+                {["s1", "s2", "s3", "s4", "s5"].map((sk) => (
+                  <Star
+                    key={sk}
+                    className="w-4 h-4 text-amber-400 fill-amber-400"
+                  />
+                ))}
+              </div>
+              <p className="text-white/80 text-sm leading-relaxed flex-1">
+                &ldquo;{t.quote}&rdquo;
               </p>
+              <div>
+                <div className="font-bold text-white text-sm">{t.name}</div>
+                <div className="text-xs text-white/40">{t.role}</div>
+              </div>
             </motion.div>
           ))}
         </div>
       </section>
 
-      {/* CTA */}
+      {/* Final CTA */}
       <section className="px-6 py-16">
         <div
           className="max-w-2xl mx-auto rounded-3xl p-10 text-center"
@@ -626,26 +725,31 @@ export default function LandingPage({
           }}
         >
           <h2 className="text-3xl font-black text-white mb-3">
-            Ready to get started?
+            Let me set this up for you personally
           </h2>
-          <p className="text-white/60 mb-8 text-base">
-            Join Indian businesses already using SAARATHI to streamline their
-            operations.
+          <p className="text-white/70 mb-8 text-base leading-relaxed">
+            I'm onboarding a few early users and helping them organize their
+            workflow.
+            <br />
+            Takes just 5 minutes to understand.
           </p>
           <button
             type="button"
-            onClick={onGetStarted}
+            onClick={() => window.open(WA_LINK, "_blank")}
             className="bg-white text-amber-800 font-black px-10 py-4 rounded-2xl text-lg transition-all hover:scale-[1.02] hover:bg-amber-50 shadow-xl"
             data-ocid="landing.primary_button"
           >
-            Create Free Account
+            📲 Book Free 5-Min Demo
           </button>
+          <p className="text-white/60 text-sm mt-4 font-semibold">
+            ⚡ Only 5 spots left this week
+          </p>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/8 px-6 py-8 text-center">
-        <div className="flex items-center justify-center gap-2 mb-3">
+      <footer className="border-t border-white/8 px-6 py-10 text-center">
+        <div className="flex items-center justify-center gap-2 mb-4">
           <div className="w-7 h-7 rounded-lg bg-amber-600 flex items-center justify-center">
             <Compass className="w-4 h-4 text-white" />
           </div>
@@ -653,6 +757,19 @@ export default function LandingPage({
             SAARATHI
           </span>
         </div>
+        <p className="text-sm font-semibold text-white/60 mb-1">
+          Tattva Innovation
+        </p>
+        <p className="text-xs text-white/35 mb-1">
+          Contact:{" "}
+          <a
+            href="tel:+919822422123"
+            className="text-amber-400 hover:text-amber-300 transition-colors"
+          >
+            +91 9822422123
+          </a>
+        </p>
+        <p className="text-xs text-white/35 mb-3">Built in India 🇮🇳</p>
         <p className="text-xs text-white/25">
           © {new Date().getFullYear()} SAARATHI. Created by{" "}
           <span className="text-white/45 font-semibold">Tattva Innovation</span>

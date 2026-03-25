@@ -202,6 +202,67 @@ export default function SettingsPage() {
     window.open(`https://wa.me/?text=${msg}`, "_blank");
   }
 
+  const DEMO_GROUP_IDS = ["g1", "g1-sub1", "g2", "g3"];
+  const DEMO_CHAT_KEYS = [
+    "group_g1",
+    "group_g1-sub1",
+    "group_g2",
+    "group_g3",
+    "dm_priya",
+    "dm_rajesh",
+    "dm_ravi",
+    "dm_meena",
+    "dm_ankit",
+    "dm_sunita",
+  ];
+
+  function hasDemoData(): boolean {
+    try {
+      const groups = JSON.parse(
+        localStorage.getItem("saarathi_groups") || "[]",
+      );
+      return groups.some(
+        (g: { id: string; isDemo?: boolean }) =>
+          g.isDemo === true || DEMO_GROUP_IDS.includes(g.id),
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  const [demoActive, setDemoActive] = useState(hasDemoData);
+
+  function clearDemoData() {
+    const confirmed = window.confirm(
+      "Remove all demo chats and contacts? Your real data will be kept.",
+    );
+    if (!confirmed) return;
+
+    try {
+      const groups = JSON.parse(
+        localStorage.getItem("saarathi_groups") || "[]",
+      );
+      const filtered = groups.filter(
+        (g: { id: string; isDemo?: boolean }) =>
+          !g.isDemo && !DEMO_GROUP_IDS.includes(g.id),
+      );
+      localStorage.setItem("saarathi_groups", JSON.stringify(filtered));
+    } catch {}
+
+    try {
+      const msgs = JSON.parse(
+        localStorage.getItem("saarathi_messages") || "{}",
+      );
+      for (const key of DEMO_CHAT_KEYS) {
+        delete msgs[key];
+      }
+      localStorage.setItem("saarathi_messages", JSON.stringify(msgs));
+    } catch {}
+
+    setDemoActive(false);
+    toast.success("Demo data removed — now using real data");
+  }
+
   const ROLE_COLORS: Record<Contact["role"], string> = {
     Colleague: "bg-blue-500/20 text-blue-300",
     Client: "bg-amber-500/20 text-amber-300",
@@ -519,6 +580,44 @@ export default function SettingsPage() {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* Demo Data Section */}
+        <div className="rounded-2xl bg-[#1e1e1e] border border-white/8 overflow-hidden">
+          <div className="px-5 py-3 bg-red-500/10 border-b border-red-500/20 flex items-center gap-2">
+            <Trash2 className="w-4 h-4 text-red-400" />
+            <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider">
+              Demo Data
+            </h2>
+          </div>
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-white/60">
+              Your app includes sample chats and contacts to help you explore.
+              Remove them when you're ready to use real data.
+            </p>
+            <div className="flex items-center gap-3">
+              <span
+                className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                  demoActive
+                    ? "bg-amber-500/20 text-amber-400"
+                    : "bg-emerald-500/20 text-emerald-400"
+                }`}
+              >
+                {demoActive ? "Demo data is active" : "Using real data only"}
+              </span>
+            </div>
+            {demoActive && (
+              <Button
+                onClick={clearDemoData}
+                variant="destructive"
+                className="bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30"
+                data-ocid="settings.delete_button"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Clear Demo Data
+              </Button>
             )}
           </div>
         </div>

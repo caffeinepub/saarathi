@@ -387,10 +387,16 @@ function TaskRequestCard({
   msg,
   isOwn,
   onUpdateStatus,
+  onOpenRequestChange,
+  onAcceptChangeRequest,
+  onRejectChangeRequest,
 }: {
   msg: LocalMessage;
   isOwn: boolean;
   onUpdateStatus: (msgId: string, status: TaskRequestStatus) => void;
+  onOpenRequestChange: (msg: LocalMessage) => void;
+  onAcceptChangeRequest?: (msgId: string) => void;
+  onRejectChangeRequest?: (msgId: string) => void;
 }) {
   const tp = msg.taskPayload;
   if (!tp) return null;
@@ -486,7 +492,32 @@ function TaskRequestCard({
       </div>
 
       <div className="px-3 pb-3">
-        {isOwn ? (
+        {isOwn && status === "change_requested" ? (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onUpdateStatus(msg.id, "accepted");
+                onAcceptChangeRequest?.(msg.id);
+              }}
+              className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors"
+              data-ocid="messenger.task.confirm_button"
+            >
+              Accept Changes
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onUpdateStatus(msg.id, "denied");
+                onRejectChangeRequest?.(msg.id);
+              }}
+              className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors"
+              data-ocid="messenger.task.delete_button"
+            >
+              Reject Changes
+            </button>
+          </div>
+        ) : isOwn ? (
           <div
             className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border ${
               STATUS_COLORS[status]
@@ -508,7 +539,7 @@ function TaskRequestCard({
             </button>
             <button
               type="button"
-              onClick={() => onUpdateStatus(msg.id, "change_requested")}
+              onClick={() => onOpenRequestChange(msg)}
               className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 text-white transition-colors"
               data-ocid="messenger.task.secondary_button"
             >
@@ -534,6 +565,258 @@ function TaskRequestCard({
             {STATUS_LABELS[status]}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function RequestChangeDrawer({
+  msg,
+  onClose,
+  onSubmit,
+}: {
+  msg: LocalMessage | null;
+  onClose: () => void;
+  onSubmit: (
+    msgId: string,
+    type: "comment" | "edit",
+    comment: string,
+    editedFields?: Partial<TaskPayload>,
+  ) => void;
+}) {
+  const [mode, setMode] = useState<"comment" | "edit">("comment");
+  const [comment, setComment] = useState("");
+  const [editWho, setEditWho] = useState("");
+  const [editWhat, setEditWhat] = useState("");
+  const [editWhen, setEditWhen] = useState("");
+  const [editWhere, setEditWhere] = useState("");
+  const [editWhy, setEditWhy] = useState("");
+
+  // Sync fields when msg changes
+  const prevMsgId = useRef<string | null>(null);
+  if (msg && msg.id !== prevMsgId.current) {
+    prevMsgId.current = msg.id;
+    setEditWho(msg.taskPayload?.assignees.join(", ") ?? "");
+    setEditWhat(msg.taskPayload?.title ?? "");
+    setEditWhen(msg.taskPayload?.dateTime ?? "");
+    setEditWhere(msg.taskPayload?.location ?? "");
+    setEditWhy(msg.taskPayload?.notes ?? "");
+    setComment("");
+    setMode("comment");
+  }
+
+  if (!msg) return null;
+
+  function handleSubmit() {
+    if (!msg) return;
+    if (mode === "comment") {
+      if (!comment.trim()) return;
+      onSubmit(msg.id, "comment", comment.trim());
+    } else {
+      const fields: Partial<TaskPayload> = {};
+      if (editWhat) fields.title = editWhat;
+      if (editWhen) fields.dateTime = editWhen;
+      if (editWhere) fields.location = editWhere;
+      if (editWhy) fields.notes = editWhy;
+      if (editWho)
+        fields.assignees = editWho
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+      onSubmit(msg.id, "edit", "", fields);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col justify-end"
+      data-ocid="messenger.task.modal"
+    >
+      {/* Overlay */}
+      <button
+        type="button"
+        aria-label="Close drawer"
+        className="absolute inset-0 bg-black/50 w-full h-full cursor-default"
+        onClick={onClose}
+        onKeyDown={(e) => e.key === "Escape" && onClose()}
+      />
+      {/* Drawer panel */}
+      <div
+        className="relative z-10 rounded-t-2xl overflow-hidden"
+        style={{
+          backgroundColor: "#1e1e1e",
+          borderTop: "1px solid #333",
+          maxHeight: "80vh",
+        }}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between px-5 py-4"
+          style={{ borderBottom: "1px solid #333" }}
+        >
+          <span className="font-bold text-amber-400 text-base">
+            🔁 Request Changes
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-stone-400 hover:text-white transition-colors"
+            data-ocid="messenger.task.close_button"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Mode tabs */}
+        <div className="flex px-5 pt-4 gap-2">
+          <button
+            type="button"
+            onClick={() => setMode("comment")}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-colors ${
+              mode === "comment"
+                ? "bg-amber-500 text-white"
+                : "bg-white/10 text-stone-400 hover:bg-white/20"
+            }`}
+            data-ocid="messenger.task.tab"
+          >
+            💬 Add Comment
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("edit")}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-colors ${
+              mode === "edit"
+                ? "bg-amber-500 text-white"
+                : "bg-white/10 text-stone-400 hover:bg-white/20"
+            }`}
+            data-ocid="messenger.task.tab"
+          >
+            ✏️ Edit Activity
+          </button>
+        </div>
+
+        {/* Body */}
+        <div
+          className="px-5 py-4 space-y-3 overflow-y-auto"
+          style={{ maxHeight: "55vh" }}
+        >
+          {mode === "comment" ? (
+            <>
+              <span className="block text-xs font-semibold text-stone-400 mb-1">
+                What would you like to change?
+              </span>
+              <textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                rows={4}
+                placeholder="Can we move this to tomorrow? / Change time to 6 PM"
+                className="w-full rounded-xl px-3 py-2 text-sm text-stone-100 placeholder-stone-500 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                style={{ backgroundColor: "#2a2a2a", border: "1px solid #444" }}
+                data-ocid="messenger.task.textarea"
+              />
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <span className="block text-[11px] font-semibold text-amber-400 mb-1">
+                  WHO
+                </span>
+                <input
+                  type="text"
+                  value={editWho}
+                  onChange={(e) => setEditWho(e.target.value)}
+                  placeholder="Assignees (comma separated)"
+                  className="w-full rounded-xl px-3 py-2 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  style={{
+                    backgroundColor: "#2a2a2a",
+                    border: "1px solid #444",
+                  }}
+                  data-ocid="messenger.task.input"
+                />
+              </div>
+              <div>
+                <span className="block text-[11px] font-semibold text-amber-400 mb-1">
+                  WHAT
+                </span>
+                <input
+                  type="text"
+                  value={editWhat}
+                  onChange={(e) => setEditWhat(e.target.value)}
+                  placeholder="Task title"
+                  className="w-full rounded-xl px-3 py-2 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  style={{
+                    backgroundColor: "#2a2a2a",
+                    border: "1px solid #444",
+                  }}
+                  data-ocid="messenger.task.input"
+                />
+              </div>
+              <div>
+                <span className="block text-[11px] font-semibold text-amber-400 mb-1">
+                  WHEN
+                </span>
+                <input
+                  type="datetime-local"
+                  value={editWhen}
+                  onChange={(e) => setEditWhen(e.target.value)}
+                  className="w-full rounded-xl px-3 py-2 text-sm text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  style={{
+                    backgroundColor: "#2a2a2a",
+                    border: "1px solid #444",
+                    colorScheme: "dark",
+                  }}
+                  data-ocid="messenger.task.input"
+                />
+              </div>
+              <div>
+                <span className="block text-[11px] font-semibold text-amber-400 mb-1">
+                  WHERE
+                </span>
+                <input
+                  type="text"
+                  value={editWhere}
+                  onChange={(e) => setEditWhere(e.target.value)}
+                  placeholder="Location"
+                  className="w-full rounded-xl px-3 py-2 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  style={{
+                    backgroundColor: "#2a2a2a",
+                    border: "1px solid #444",
+                  }}
+                  data-ocid="messenger.task.input"
+                />
+              </div>
+              <div>
+                <span className="block text-[11px] font-semibold text-amber-400 mb-1">
+                  WHY / NOTES
+                </span>
+                <textarea
+                  value={editWhy}
+                  onChange={(e) => setEditWhy(e.target.value)}
+                  rows={3}
+                  placeholder="Notes or reason for change"
+                  className="w-full rounded-xl px-3 py-2 text-sm text-stone-100 placeholder-stone-500 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  style={{
+                    backgroundColor: "#2a2a2a",
+                    border: "1px solid #444",
+                  }}
+                  data-ocid="messenger.task.textarea"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Submit */}
+        <div className="px-5 pb-6 pt-2" style={{ borderTop: "1px solid #333" }}>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold transition-colors"
+            data-ocid="messenger.task.submit_button"
+          >
+            {mode === "comment" ? "Send Change Request" : "Propose Changes"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -629,10 +912,16 @@ function MessageBubble({
   msg,
   isOwn,
   onUpdateTaskStatus,
+  onOpenRequestChange,
+  onAcceptChangeRequest,
+  onRejectChangeRequest,
 }: {
   msg: LocalMessage;
   isOwn: boolean;
   onUpdateTaskStatus: (msgId: string, status: TaskRequestStatus) => void;
+  onOpenRequestChange: (msg: LocalMessage) => void;
+  onAcceptChangeRequest?: (msgId: string) => void;
+  onRejectChangeRequest?: (msgId: string) => void;
 }) {
   if (msg.msgType === "task_request") {
     return (
@@ -660,6 +949,9 @@ function MessageBubble({
             msg={msg}
             isOwn={isOwn}
             onUpdateStatus={onUpdateTaskStatus}
+            onOpenRequestChange={onOpenRequestChange}
+            onAcceptChangeRequest={onAcceptChangeRequest}
+            onRejectChangeRequest={onRejectChangeRequest}
           />
           <span className="text-[10px] text-muted-foreground px-1">
             {formatTime(msg.timestamp)}
@@ -720,9 +1012,13 @@ function MessageBubble({
           isOwn ? "items-end" : "items-start"
         } flex flex-col gap-0.5`}
       >
-        {!isOwn && (
+        {!isOwn ? (
           <span className="text-[11px] font-semibold text-muted-foreground px-1">
             {msg.senderName}
+          </span>
+        ) : (
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-semibold self-end mr-1 mb-0.5">
+            You
           </span>
         )}
         <div
@@ -1027,11 +1323,23 @@ export default function ChatArea({
   const [showCommitmentHint, setShowCommitmentHint] = useState(false);
   const [commitmentText, setCommitmentText] = useState("");
   const [showAutoInvoice, setShowAutoInvoice] = useState(false);
+  const [chipsHidden, setChipsHidden] = useState(false);
+  const [invoiceEditMode, setInvoiceEditMode] = useState(false);
+  const [invFormClient, setInvFormClient] = useState("");
+  const [invFormAmount, setInvFormAmount] = useState(0);
+  const [invFormGst, setInvFormGst] = useState(18);
+  const [invFormDate, setInvFormDate] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
+  const [invFormDesc, setInvFormDesc] = useState("Professional services");
   const [autoInvoiceData, setAutoInvoiceData] = useState<{
     client: string;
     amount: number;
     basedOnPrevious: boolean;
   } | null>(null);
+  const [requestChangeMsg, setRequestChangeMsg] = useState<LocalMessage | null>(
+    null,
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const msgCount = messages.length;
@@ -1043,12 +1351,49 @@ export default function ChatArea({
     }
   }, [msgCount]);
 
+  function handleRequestChangeSubmit(
+    msgId: string,
+    type: "comment" | "edit",
+    comment: string,
+    editedFields?: Partial<TaskPayload>,
+  ) {
+    onUpdateTaskStatus(msgId, "change_requested");
+    if (type === "comment") {
+      onSendMessage(`🔁 Change requested: ${comment}`);
+    } else if (type === "edit" && editedFields) {
+      const parts: string[] = ["🔁 Proposed changes:"];
+      if (editedFields.title) parts.push(`What: ${editedFields.title}`);
+      if (editedFields.dateTime) {
+        const d = new Date(editedFields.dateTime);
+        parts.push(
+          `When: ${d.toLocaleDateString("en-IN")} at ${d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`,
+        );
+      }
+      if (editedFields.location) parts.push(`Where: ${editedFields.location}`);
+      if (editedFields.notes) parts.push(`Notes: ${editedFields.notes}`);
+      onSendMessage(parts.join("\n"));
+    }
+    setRequestChangeMsg(null);
+  }
+
+  function handleAcceptChangeRequest(msgId: string) {
+    onUpdateTaskStatus(msgId, "accepted");
+    onSendMessage("✅ Changes accepted. Activity updated.");
+  }
+
+  function handleRejectChangeRequest(msgId: string) {
+    onUpdateTaskStatus(msgId, "denied");
+    onSendMessage("❌ Change request declined");
+  }
+
   // Reset hints when chat changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: currentChat is a prop, intentional
   useEffect(() => {
     setShowCommitmentHint(false);
     setShowAutoInvoice(false);
     setAutoInvoiceData(null);
+    setChipsHidden(false);
+    setInvoiceEditMode(false);
   }, [currentChat]);
 
   function markCommitmentActed(text: string) {
@@ -1187,6 +1532,72 @@ export default function ChatArea({
   // Dynamic AI action bar based on last message
   const lastMsgContent =
     messages[messages.length - 1]?.content?.toLowerCase() ?? "";
+
+  // Contextual suggestion chips based on last message
+  const contextualChips: Array<{ label: string; draft: string }> = (() => {
+    if (
+      lastMsgContent.includes("payment") ||
+      lastMsgContent.includes("invoice") ||
+      lastMsgContent.includes("₹")
+    ) {
+      return [
+        {
+          label: "Ask for payment",
+          draft:
+            "Hi, just a gentle reminder that your payment is due. Please let me know when it will be processed.",
+        },
+        {
+          label: "Send invoice reminder",
+          draft:
+            "Please find attached the invoice for your reference. Kindly process the payment at the earliest.",
+        },
+        {
+          label: "Request update",
+          draft:
+            "Could you please provide an update on the payment status? Thank you.",
+        },
+      ];
+    }
+    if (
+      lastMsgContent.includes("meet") ||
+      lastMsgContent.includes("call") ||
+      lastMsgContent.includes("tomorrow")
+    ) {
+      return [
+        {
+          label: "Schedule meeting",
+          draft:
+            "Could we schedule a quick meeting to discuss this? Please share your availability.",
+        },
+        {
+          label: "Confirm time",
+          draft:
+            "Please confirm the time that works best for you for our meeting.",
+        },
+        {
+          label: "Set reminder",
+          draft:
+            "I'll make a note and follow up. Please remind me if you don't hear back.",
+        },
+      ];
+    }
+    return [
+      {
+        label: "Reply politely",
+        draft:
+          "Thank you for reaching out. I appreciate your patience and will get back to you shortly.",
+      },
+      {
+        label: "Ask for update",
+        draft:
+          "Hi, just checking in — could you please share an update on this?",
+      },
+      {
+        label: "Say thanks",
+        draft: "Thank you for your message. Appreciate the quick response!",
+      },
+    ];
+  })();
   const showMeeting =
     lastMsgContent.includes("meet") ||
     lastMsgContent.includes("call") ||
@@ -1231,15 +1642,6 @@ export default function ChatArea({
       suggestions.push("Reply politely", "Ask for payment");
     }
   }
-
-  const SUGGESTION_TEMPLATES: Record<string, string> = {
-    "Reply politely":
-      "Thank you for reaching out. I appreciate your patience and will get back to you shortly.",
-    "Ask for payment":
-      "Hi, just a gentle reminder that the payment for our recent work is due. Please let me know if you have any questions.",
-    "Schedule meeting":
-      "Could we schedule a quick meeting to discuss this? Please let me know your availability.",
-  };
 
   function generateAIDraftReply(msgs: LocalMessage[]): string {
     const lastFive = msgs
@@ -1508,6 +1910,9 @@ export default function ChatArea({
                   msg={msg}
                   isOwn={msg.senderId === currentUserId}
                   onUpdateTaskStatus={onUpdateTaskStatus}
+                  onOpenRequestChange={setRequestChangeMsg}
+                  onAcceptChangeRequest={handleAcceptChangeRequest}
+                  onRejectChangeRequest={handleRejectChangeRequest}
                 />
               ))}
             </div>
@@ -1552,6 +1957,9 @@ export default function ChatArea({
                 msg={msg}
                 isOwn={msg.senderId === currentUserId}
                 onUpdateTaskStatus={onUpdateTaskStatus}
+                onOpenRequestChange={setRequestChangeMsg}
+                onAcceptChangeRequest={handleAcceptChangeRequest}
+                onRejectChangeRequest={handleRejectChangeRequest}
               />
             ))}
           </div>
@@ -1626,6 +2034,11 @@ export default function ChatArea({
           onSendBusinessDoc(payload);
         }}
       />
+      <RequestChangeDrawer
+        msg={requestChangeMsg}
+        onClose={() => setRequestChangeMsg(null)}
+        onSubmit={handleRequestChangeSubmit}
+      />
     </div>
   );
 
@@ -1638,23 +2051,32 @@ export default function ChatArea({
           </div>
         ) : (
           <>
-            {/* Smart typing suggestions */}
-            {suggestions.length > 0 && (
+            {/* Smart typing suggestions — contextual chips */}
+            {!chipsHidden && contextualChips.length > 0 && (
               <div
-                className="flex gap-1.5 mb-2 flex-wrap"
+                className="flex items-center gap-1.5 mb-2 flex-wrap"
                 data-ocid="messenger.suggestions.panel"
               >
-                {suggestions.map((s) => (
+                {contextualChips.map((chip) => (
                   <button
-                    key={s}
+                    key={chip.label}
                     type="button"
-                    onClick={() => setText(SUGGESTION_TEMPLATES[s] ?? s)}
-                    className="text-xs px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors font-medium"
+                    onClick={() => setText(chip.draft)}
+                    className="text-xs px-2.5 py-1 rounded-full bg-transparent border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition-colors font-medium"
                     data-ocid="messenger.suggestion.button"
                   >
-                    💡 {s}
+                    {chip.label}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => setChipsHidden(true)}
+                  className="ml-auto text-stone-500 hover:text-stone-300 text-xs px-1"
+                  data-ocid="messenger.suggestions.close_button"
+                  title="Hide suggestions"
+                >
+                  ✕
+                </button>
               </div>
             )}
 
@@ -1804,17 +2226,12 @@ export default function ChatArea({
                   <button
                     type="button"
                     onClick={() => {
-                      try {
-                        localStorage.setItem(
-                          "saarathi_prefill_invoice",
-                          JSON.stringify({
-                            clientName: autoInvoiceData.client,
-                            amount: autoInvoiceData.amount,
-                          }),
-                        );
-                      } catch {}
-                      setShowAutoInvoice(false);
-                      onNavigate?.("business");
+                      setInvFormClient(autoInvoiceData.client);
+                      setInvFormAmount(autoInvoiceData.amount);
+                      setInvFormGst(18);
+                      setInvFormDate(new Date().toISOString().slice(0, 10));
+                      setInvFormDesc("Professional services");
+                      setInvoiceEditMode(true);
                     }}
                     className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-stone-700 hover:bg-stone-600 text-white transition-colors"
                     data-ocid="messenger.auto_invoice.edit_button"
@@ -1822,6 +2239,136 @@ export default function ChatArea({
                     Edit
                   </button>
                 </div>
+
+                {/* Inline invoice edit form */}
+                {invoiceEditMode && (
+                  <div className="mt-3 pt-3 border-t border-amber-500/20 space-y-2">
+                    <p className="text-xs text-amber-400 font-semibold">
+                      Edit Invoice
+                    </p>
+                    <div className="space-y-1.5">
+                      <input
+                        type="text"
+                        value={invFormClient}
+                        onChange={(e) => setInvFormClient(e.target.value)}
+                        placeholder="Client Name"
+                        className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                      <input
+                        type="number"
+                        value={invFormAmount}
+                        onChange={(e) =>
+                          setInvFormAmount(Number(e.target.value))
+                        }
+                        placeholder="Amount (₹)"
+                        className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                      <select
+                        value={invFormGst}
+                        onChange={(e) => setInvFormGst(Number(e.target.value))}
+                        className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      >
+                        {[0, 5, 12, 18, 28].map((r) => (
+                          <option key={r} value={r}>
+                            GST {r}%
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="date"
+                        value={invFormDate}
+                        onChange={(e) => setInvFormDate(e.target.value)}
+                        className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                      <textarea
+                        value={invFormDesc}
+                        onChange={(e) => setInvFormDesc(e.target.value)}
+                        placeholder="Description"
+                        rows={2}
+                        className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
+                      />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setInvoiceEditMode(false)}
+                        className="flex-1 text-xs py-1.5 rounded-lg bg-stone-700 hover:bg-stone-600 text-white transition-colors"
+                        data-ocid="messenger.auto_invoice.cancel_button"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            const storedDocs3 = JSON.parse(
+                              localStorage.getItem("saarathi_business_docs") ||
+                                "[]",
+                            );
+                            const storedClients3 = JSON.parse(
+                              localStorage.getItem("saarathi_clients") || "[]",
+                            );
+                            let clientId3 = storedClients3.find(
+                              (c: { name: string; id: string }) =>
+                                c.name === invFormClient,
+                            )?.id;
+                            if (!clientId3) {
+                              clientId3 = `client_auto_${Date.now()}`;
+                              storedClients3.push({
+                                id: clientId3,
+                                name: invFormClient,
+                              });
+                              localStorage.setItem(
+                                "saarathi_clients",
+                                JSON.stringify(storedClients3),
+                              );
+                            }
+                            const invNum2 = `INV-${String(storedDocs3.filter((d: { type: string }) => d.type === "invoice").length + 1).padStart(3, "0")}`;
+                            const baseRate =
+                              invFormAmount / (1 + invFormGst / 100);
+                            const newInv2 = {
+                              id: `inv_edit_${Date.now()}`,
+                              type: "invoice",
+                              number: invNum2,
+                              date: invFormDate,
+                              dueDate: invFormDate,
+                              clientId: clientId3,
+                              status: "sent",
+                              notes: "",
+                              lineItems: [
+                                {
+                                  id: "li1",
+                                  description: invFormDesc,
+                                  qty: 1,
+                                  rate: baseRate,
+                                  gstRate: invFormGst,
+                                },
+                              ],
+                            };
+                            storedDocs3.push(newInv2);
+                            localStorage.setItem(
+                              "saarathi_business_docs",
+                              JSON.stringify(storedDocs3),
+                            );
+                            window.dispatchEvent(
+                              new CustomEvent("saarathi:docs-updated"),
+                            );
+                            onSendMessage(
+                              `📄 Invoice ${invNum2} sent to ${invFormClient}`,
+                            );
+                          } catch {}
+                          setInvoiceEditMode(false);
+                          setShowAutoInvoice(false);
+                          toast.success("Invoice created successfully");
+                        }}
+                        className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors"
+                        data-ocid="messenger.auto_invoice.confirm_button"
+                      >
+                        Send Invoice
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1906,7 +2453,10 @@ export default function ChatArea({
             </div>
 
             {/* Dynamic AI Action Bar */}
-            <div className="mt-2" data-ocid="messenger.ai_action.panel">
+            <div
+              className="mt-2 border border-amber-500/30 bg-amber-950/20 rounded-xl px-3 py-1.5 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+              data-ocid="messenger.ai_action.panel"
+            >
               {hasContextualButtons && (
                 <p className="text-[10px] text-purple-400 font-medium mb-1">
                   AI suggests:

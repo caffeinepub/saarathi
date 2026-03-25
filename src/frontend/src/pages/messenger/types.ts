@@ -57,6 +57,7 @@ export interface LocalGroup {
   parentGroupId?: string;
   /** 0 = top-level, 1 = first-level subgroup, … max 9 */
   depth: number;
+  isDemo?: boolean;
 }
 
 export interface LocalMessage {

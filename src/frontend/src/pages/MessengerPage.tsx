@@ -1,4 +1,4 @@
-import { MessageSquarePlus } from "lucide-react";
+import { Compass, MessageSquarePlus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { dataStore } from "../store/dataStore";
@@ -260,10 +260,126 @@ function TodaySummaryStrip({
   );
 }
 
+// ─── Onboarding Modal ──────────────────────────────────────────────────────────
+const ONBOARDING_STEPS = [
+  {
+    title: "Send messages like WhatsApp",
+    body: "Chat with your team, groups, and contacts just like you do on WhatsApp.",
+    icon: "💬",
+  },
+  {
+    title: "AI turns messages into tasks",
+    body: "Type naturally — SAARATHI AI detects when you mention a task or meeting and creates it for you.",
+    icon: "✨",
+  },
+  {
+    title: "Track payments and invoices",
+    body: "Generate GST-compliant invoices directly from chat conversations with one tap.",
+    icon: "💰",
+  },
+  {
+    title: "Use AI buttons inside chat",
+    body: "Every chat has smart AI action buttons — Reply, Create Task, Create Invoice — always ready.",
+    icon: "🤖",
+  },
+];
+
+function OnboardingModal({ onDone }: { onDone: () => void }) {
+  const [step, setStep] = useState(0);
+
+  function finish() {
+    localStorage.setItem("saarathi_onboarded", "true");
+    onDone();
+  }
+
+  const current = ONBOARDING_STEPS[step];
+  const isLast = step === ONBOARDING_STEPS.length - 1;
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+      data-ocid="onboarding.modal"
+    >
+      <div className="w-full max-w-sm bg-[#1e1e1e] rounded-2xl border border-amber-500/30 shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-5 py-4 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center">
+            <Compass className="w-4 h-4 text-white" />
+          </div>
+          <div className="flex-1">
+            <span className="text-sm font-bold text-amber-400">SAARATHI</span>
+            <span className="ml-2 text-xs text-amber-400/60">
+              {step + 1} of {ONBOARDING_STEPS.length}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={finish}
+            className="text-white/30 hover:text-white/60"
+            data-ocid="onboarding.close_button"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-8 text-center">
+          <div className="text-5xl mb-4">{current.icon}</div>
+          <h2 className="text-lg font-bold text-white mb-3">{current.title}</h2>
+          <p className="text-white/60 text-sm leading-relaxed">
+            {current.body}
+          </p>
+        </div>
+
+        {/* Progress dots */}
+        <div className="flex justify-center gap-1.5 pb-4">
+          {ONBOARDING_STEPS.map((step_item, i) => (
+            <div
+              key={step_item.title}
+              className={`w-2 h-2 rounded-full transition-colors ${i === step ? "bg-amber-400" : "bg-white/20"}`} // biome-ignore lint/suspicious/noArrayIndexKey: index needed for step comparison
+            />
+          ))}
+        </div>
+
+        {/* Buttons */}
+        <div className="px-6 pb-6 flex gap-3">
+          <button
+            type="button"
+            onClick={finish}
+            className="flex-1 py-2 text-sm text-white/40 hover:text-white/60 transition-colors"
+            data-ocid="onboarding.cancel_button"
+          >
+            Skip
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (isLast) finish();
+              else setStep((s) => s + 1);
+            }}
+            className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-black font-semibold text-sm rounded-xl transition-colors"
+            data-ocid="onboarding.primary_button"
+          >
+            {isLast ? "Start Using App" : "Next →"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MessengerPage({ onNavigate }: MessengerPageProps) {
   const { profile } = useAuth();
   const currentUserId = profile?.username || "me";
   const currentDisplayName = profile?.displayName || profile?.username || "You";
+
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    try {
+      return !localStorage.getItem("saarathi_onboarded");
+    } catch {
+      return false;
+    }
+  });
 
   const [groups, setGroups] = useState<LocalGroup[]>(() =>
     makeSampleGroups(currentUserId),
@@ -332,6 +448,55 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
       localStorage.setItem("saarathi_messages", JSON.stringify(messages));
     } catch {}
   }, [messages]);
+
+  // Sync messages written by AI panel (same-tab custom event + cross-tab storage event)
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const stored = localStorage.getItem("saarathi_messages");
+        if (!stored) return;
+        const parsed: Record<string, LocalMessage[]> = JSON.parse(stored);
+        setMessages((prev) => {
+          const merged = { ...prev };
+          for (const [key, msgs] of Object.entries(parsed)) {
+            const existing = merged[key] ?? [];
+            const existingIds = new Set(existing.map((m) => m.id));
+            const newMsgs = (msgs as LocalMessage[]).filter(
+              (m) => !existingIds.has(m.id),
+            );
+            if (newMsgs.length > 0) {
+              merged[key] = [...existing, ...newMsgs].sort(
+                (a, b) => a.timestamp - b.timestamp,
+              );
+            }
+          }
+          return merged;
+        });
+      } catch {}
+    };
+    window.addEventListener("saarathi_messages_updated", handler);
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener("saarathi_messages_updated", handler);
+      window.removeEventListener("storage", handler);
+    };
+  }, []);
+
+  // Persist dmContacts so AI panel can build correct DM keys
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "saarathi_dm_contacts",
+        JSON.stringify(
+          dmContacts.map((u) => ({
+            id: u.id,
+            label: u.displayName,
+            username: u.username,
+          })),
+        ),
+      );
+    } catch {}
+  }, [dmContacts]);
 
   // Inject pending task messages written by AI panel
   useEffect(() => {
@@ -634,6 +799,10 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
       className="h-full flex flex-col overflow-hidden relative"
       data-ocid="messenger.panel"
     >
+      {showOnboarding && (
+        <OnboardingModal onDone={() => setShowOnboarding(false)} />
+      )}
+
       {/* Commitment Banner */}
       <CommitmentBanner onNavigate={onNavigate} />
 

@@ -43,11 +43,16 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import MapPickerModal from "../components/MapPickerModal";
+import { useAuth } from "../context/AuthContext";
 import { dataStore } from "../store/dataStore";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type TaskType = "meeting" | "groupTask" | "other";
-type ActivityStatus = "pending" | "inProgress" | "completed";
+type ActivityStatus =
+  | "pending"
+  | "inProgress"
+  | "completed"
+  | "change_requested";
 
 interface ActivityAttachment {
   id: string;
@@ -198,6 +203,7 @@ function isOverdue(deadline: string, status: ActivityStatus) {
 function nextStatus(s: ActivityStatus): ActivityStatus {
   if (s === "pending") return "inProgress";
   if (s === "inProgress") return "completed";
+  if (s === "change_requested") return "pending";
   return "pending";
 }
 
@@ -219,6 +225,11 @@ const STATUS_CONFIG: Record<
     label: "Completed",
     color: "bg-green-100 text-green-700 border-green-200",
     icon: CheckCircle2,
+  },
+  change_requested: {
+    label: "🔁 Change Requested",
+    color: "bg-blue-100 text-blue-700 border-blue-200",
+    icon: AlertCircle,
   },
 };
 
@@ -1511,6 +1522,9 @@ function SchedulerTab({ activities }: { activities: Activity[] }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ActivitiesPage() {
+  const { profile } = useAuth();
+  const currentUserId = profile?.username || "me";
+  const currentDisplayName = profile?.displayName || profile?.username || "You";
   const [activities, setActivities] = useState<Activity[]>(() => {
     try {
       const stored = localStorage.getItem("saarathi_activities");
@@ -1582,6 +1596,26 @@ export default function ActivitiesPage() {
   function handleCreate(a: Activity) {
     setActivities((prev) => [a, ...prev]);
     toast.success("Action created");
+    // Post confirmation message to linked chat
+    try {
+      const chatTarget = a.chatThreadId || "group_g1";
+      const msgs = JSON.parse(
+        localStorage.getItem("saarathi_messages") || "{}",
+      );
+      const now = Date.now();
+      msgs[chatTarget] = [
+        ...(msgs[chatTarget] || []),
+        {
+          id: `act_${now}`,
+          senderId: currentUserId,
+          senderName: currentDisplayName,
+          content: `📌 Task created: ${a.title}`,
+          msgType: "text",
+          timestamp: now,
+        },
+      ];
+      localStorage.setItem("saarathi_messages", JSON.stringify(msgs));
+    } catch {}
   }
 
   function handleStatusChange(id: string) {

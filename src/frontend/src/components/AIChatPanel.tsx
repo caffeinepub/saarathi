@@ -80,6 +80,7 @@ function getAvailableChats(): AvailableChat[] {
       { key: "group_g1", label: "Sales Team", type: "group" },
       { key: "group_g3", label: "Finance & GST", type: "group" },
       { key: "dm_priya", label: "Priya Sharma", type: "dm" },
+      { key: "dm_ravi", label: "Ravi Kumar", type: "dm" },
       { key: "dm_rajesh", label: "Rajesh Kumar", type: "dm" },
     );
   }
@@ -98,11 +99,24 @@ function getAvailableChats(): AvailableChat[] {
       }
     }
   } catch {}
+  // Read DM contacts persisted by MessengerPage (most reliable source)
+  try {
+    const dmContacts = JSON.parse(
+      localStorage.getItem("saarathi_dm_contacts") || "[]",
+    );
+    for (const c of dmContacts) {
+      const key = `dm_${c.id}`;
+      if (!chats.find((ch) => ch.key === key)) {
+        chats.push({ key, label: c.label || c.displayName, type: "dm" });
+      }
+    }
+  } catch {}
   // Also add messenger users as DM options
   try {
     const users = JSON.parse(localStorage.getItem("saarathi_users") || "[]");
     for (const u of users) {
-      const key = `dm_${u.id || u.username}`;
+      // Use canonical id (not username) to match sampleData keys
+      const key = `dm_${u.id}`;
       if (!chats.find((ch) => ch.key === key)) {
         chats.push({ key, label: u.displayName || u.username, type: "dm" });
       }
@@ -169,6 +183,7 @@ function sendToMessengerChat(
       existing[chatKey] = [...(existing[chatKey] || []), msg];
     }
     localStorage.setItem("saarathi_messages", JSON.stringify(existing));
+    window.dispatchEvent(new CustomEvent("saarathi_messages_updated"));
   } catch {}
 }
 

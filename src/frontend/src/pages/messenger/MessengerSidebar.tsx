@@ -11,7 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { useState } from "react";
-import { getAvatarColor } from "./sampleData";
+import { SAMPLE_DEMO_KEYS, getAvatarColor } from "./sampleData";
 import type { ChatTarget, LocalGroup, LocalUser } from "./types";
 import { chatKey, getInitials } from "./types";
 
@@ -42,6 +42,22 @@ interface GroupTreeItemProps {
   itemIndex: number;
 }
 
+function DemoBadge() {
+  return (
+    <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-400 font-semibold flex-shrink-0">
+      Demo
+    </span>
+  );
+}
+
+function RealBadge() {
+  return (
+    <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold flex-shrink-0">
+      Real
+    </span>
+  );
+}
+
 function GroupTreeItem({
   group,
   allGroups,
@@ -60,6 +76,8 @@ function GroupTreeItem({
   const depth = group.depth ?? 0;
   const canAddSubgroup = isAdmin && depth < 9;
   const indentPx = depth * 12;
+  const isDemo =
+    group.isDemo === true || SAMPLE_DEMO_KEYS.groupIds.includes(group.id);
 
   const target: ChatTarget = {
     type: "group",
@@ -101,7 +119,7 @@ function GroupTreeItem({
         <button
           type="button"
           onClick={() => onSelectChat(target)}
-          className={`flex-1 flex items-center gap-2 py-2 text-sm ${
+          className={`flex-1 flex items-center gap-1.5 py-2 text-sm min-w-0 ${
             children.length === 0 ? "px-2" : "pl-0 pr-2"
           } ${active ? "text-white" : ""}`}
           style={active ? {} : { color: "#b0a898" }}
@@ -112,7 +130,10 @@ function GroupTreeItem({
           ) : (
             <Hash className="w-3.5 h-3.5 flex-shrink-0 text-amber-400/70" />
           )}
-          <span className="truncate text-xs font-medium">{group.name}</span>
+          <span className="min-w-0 flex-1 truncate text-xs font-medium">
+            {group.name}
+          </span>
+          {isDemo ? <DemoBadge /> : <RealBadge />}
           <span
             className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium ${
               active
@@ -212,7 +233,7 @@ export default function MessengerSidebar({
 
   return (
     <div
-      className="flex flex-col h-full w-64 flex-shrink-0"
+      className="flex flex-col h-full w-72 flex-shrink-0 overflow-hidden"
       style={{ backgroundColor: "#1e1e1e", borderRight: "1px solid #333" }}
     >
       {/* Header */}
@@ -269,6 +290,7 @@ export default function MessengerSidebar({
                     displayName: user.displayName,
                   };
                   const active = isActive(target);
+                  const isDemoUser = SAMPLE_DEMO_KEYS.userIds.includes(user.id);
                   return (
                     <button
                       key={user.id}
@@ -289,9 +311,14 @@ export default function MessengerSidebar({
                           {getInitials(user.displayName)}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="truncate text-xs font-medium">
+                      <span className="truncate text-xs font-medium flex-1">
                         {user.displayName}
                       </span>
+                      {isDemoUser ? (
+                        <DemoBadge />
+                      ) : user.id !== currentUserId ? (
+                        <RealBadge />
+                      ) : null}
                     </button>
                   );
                 })}
