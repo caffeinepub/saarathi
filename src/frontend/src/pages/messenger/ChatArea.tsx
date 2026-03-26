@@ -1569,6 +1569,22 @@ export default function ChatArea({
     new Date().toISOString().slice(0, 10),
   );
   const [invFormDesc, setInvFormDesc] = useState("Professional services");
+  const [invFormLineItems, setInvFormLineItems] = useState<
+    Array<{
+      id: string;
+      description: string;
+      qty: number;
+      rate: number;
+      gstRate: number;
+    }>
+  >([]);
+  const [showNewClientForm, setShowNewClientForm] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
+  const [showNewProductForm, setShowNewProductForm] = useState(false);
+  const [newProductName, setNewProductName] = useState("");
+  const [newProductRate, setNewProductRate] = useState(0);
+  const [newProductGst, setNewProductGst] = useState(18);
   const [autoInvoiceData, setAutoInvoiceData] = useState<{
     client: string;
     amount: number;
@@ -2833,50 +2849,441 @@ export default function ChatArea({
                   </button>
                 </div>
 
-                {/* Inline invoice edit form */}
                 {invoiceEditMode && (
                   <div className="mt-3 pt-3 border-t border-amber-500/20 space-y-2">
                     <p className="text-xs text-amber-400 font-semibold">
                       Edit Invoice
                     </p>
                     <div className="space-y-1.5">
-                      <input
-                        type="text"
-                        value={invFormClient}
-                        onChange={(e) => setInvFormClient(e.target.value)}
-                        placeholder="Client Name"
-                        className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                      />
-                      <input
-                        type="number"
-                        value={invFormAmount}
-                        onChange={(e) =>
-                          setInvFormAmount(Number(e.target.value))
-                        }
-                        placeholder="Amount (₹)"
-                        className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                      />
-                      <select
-                        value={invFormGst}
-                        onChange={(e) => setInvFormGst(Number(e.target.value))}
-                        className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
-                      >
-                        {[0, 5, 12, 18, 28].map((r) => (
-                          <option key={r} value={r}>
-                            GST {r}%
-                          </option>
-                        ))}
-                      </select>
+                      <div className="space-y-1">
+                        <span className="text-xs text-stone-400">Client</span>
+                        {(() => {
+                          const storedClients = (() => {
+                            try {
+                              return JSON.parse(
+                                localStorage.getItem("saarathi_clients") ||
+                                  "[]",
+                              );
+                            } catch {
+                              return [];
+                            }
+                          })();
+                          return (
+                            <select
+                              value={invFormClient}
+                              onChange={(e) => {
+                                if (e.target.value === "__new__") {
+                                  setShowNewClientForm(true);
+                                } else {
+                                  setInvFormClient(e.target.value);
+                                  setShowNewClientForm(false);
+                                }
+                              }}
+                              className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                            >
+                              <option value="">-- Select Client --</option>
+                              {storedClients.map(
+                                (c: { id: string; name: string }) => (
+                                  <option key={c.id} value={c.name}>
+                                    {c.name}
+                                  </option>
+                                ),
+                              )}
+                              <option value="__new__">+ Add New Client</option>
+                            </select>
+                          );
+                        })()}
+                        {showNewClientForm && (
+                          <div className="p-2 rounded-lg bg-stone-900 border border-amber-500/30 space-y-1.5">
+                            <p className="text-xs text-amber-400 font-medium">
+                              New Client
+                            </p>
+                            <input
+                              type="text"
+                              value={newClientName}
+                              onChange={(e) => setNewClientName(e.target.value)}
+                              placeholder="Client Name *"
+                              className="w-full px-2 py-1 text-xs rounded bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                            />
+                            <input
+                              type="text"
+                              value={newClientPhone}
+                              onChange={(e) =>
+                                setNewClientPhone(e.target.value)
+                              }
+                              placeholder="Phone (optional)"
+                              className="w-full px-2 py-1 text-xs rounded bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                            />
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!newClientName.trim()) return;
+                                  try {
+                                    const clients = JSON.parse(
+                                      localStorage.getItem(
+                                        "saarathi_clients",
+                                      ) || "[]",
+                                    );
+                                    clients.push({
+                                      id: `client_${Date.now()}`,
+                                      name: newClientName.trim(),
+                                      phone: newClientPhone.trim(),
+                                      email: "",
+                                      gstin: "",
+                                      address: "",
+                                    });
+                                    localStorage.setItem(
+                                      "saarathi_clients",
+                                      JSON.stringify(clients),
+                                    );
+                                    window.dispatchEvent(
+                                      new CustomEvent(
+                                        "saarathi:clients-updated",
+                                      ),
+                                    );
+                                  } catch {}
+                                  setInvFormClient(newClientName.trim());
+                                  setNewClientName("");
+                                  setNewClientPhone("");
+                                  setShowNewClientForm(false);
+                                  toast.success("Client added");
+                                }}
+                                className="flex-1 text-xs py-1 rounded bg-amber-500 hover:bg-amber-600 text-white"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowNewClientForm(false)}
+                                className="px-3 text-xs py-1 rounded bg-stone-700 text-white"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                       <input
                         type="date"
                         value={invFormDate}
                         onChange={(e) => setInvFormDate(e.target.value)}
                         className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
                       />
+                      <div className="space-y-1">
+                        <span className="text-xs text-stone-400">
+                          Products / Services
+                        </span>
+                        {invFormLineItems.map((item, idx) => (
+                          <div
+                            key={item.id}
+                            className="p-2 rounded-lg bg-stone-900 border border-stone-700 space-y-1"
+                          >
+                            <div className="flex gap-1">
+                              {(() => {
+                                const storedProducts = (() => {
+                                  try {
+                                    return JSON.parse(
+                                      localStorage.getItem(
+                                        "saarathi_products",
+                                      ) || "[]",
+                                    );
+                                  } catch {
+                                    return [];
+                                  }
+                                })();
+                                return (
+                                  <select
+                                    value={item.description}
+                                    onChange={(e) => {
+                                      if (e.target.value === "__new__") {
+                                        setShowNewProductForm(true);
+                                        return;
+                                      }
+                                      const prod = storedProducts.find(
+                                        (p: {
+                                          name: string;
+                                          price: number;
+                                          gstRate: number;
+                                        }) => p.name === e.target.value,
+                                      );
+                                      setInvFormLineItems((prev) =>
+                                        prev.map((li, i) =>
+                                          i === idx
+                                            ? {
+                                                ...li,
+                                                description: e.target.value,
+                                                rate: prod
+                                                  ? prod.price
+                                                  : li.rate,
+                                                gstRate: prod
+                                                  ? (prod.gstRate ?? 18)
+                                                  : li.gstRate,
+                                              }
+                                            : li,
+                                        ),
+                                      );
+                                    }}
+                                    className="flex-1 px-2 py-1 text-xs rounded bg-stone-800 border border-stone-600 text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                  >
+                                    <option value="">
+                                      -- Select Product --
+                                    </option>
+                                    {storedProducts.map(
+                                      (p: { id: string; name: string }) => (
+                                        <option key={p.id} value={p.name}>
+                                          {p.name}
+                                        </option>
+                                      ),
+                                    )}
+                                    <option
+                                      value={item.description || "Custom"}
+                                    >
+                                      {item.description || "Custom item"}
+                                    </option>
+                                    <option value="__new__">
+                                      + New Product
+                                    </option>
+                                  </select>
+                                );
+                              })()}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setInvFormLineItems((prev) =>
+                                    prev.filter((_, i) => i !== idx),
+                                  )
+                                }
+                                className="px-2 text-xs text-red-400 hover:text-red-300"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                            <div className="flex gap-1">
+                              <input
+                                type="number"
+                                value={item.qty}
+                                onChange={(e) =>
+                                  setInvFormLineItems((prev) =>
+                                    prev.map((li, i) =>
+                                      i === idx
+                                        ? { ...li, qty: Number(e.target.value) }
+                                        : li,
+                                    ),
+                                  )
+                                }
+                                placeholder="Qty"
+                                className="w-16 px-2 py-1 text-xs rounded bg-stone-800 border border-stone-600 text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                              />
+                              <input
+                                type="number"
+                                value={Math.round(item.rate)}
+                                onChange={(e) =>
+                                  setInvFormLineItems((prev) =>
+                                    prev.map((li, i) =>
+                                      i === idx
+                                        ? {
+                                            ...li,
+                                            rate: Number(e.target.value),
+                                          }
+                                        : li,
+                                    ),
+                                  )
+                                }
+                                placeholder="Rate ₹"
+                                className="flex-1 px-2 py-1 text-xs rounded bg-stone-800 border border-stone-600 text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                              />
+                              <select
+                                value={item.gstRate}
+                                onChange={(e) =>
+                                  setInvFormLineItems((prev) =>
+                                    prev.map((li, i) =>
+                                      i === idx
+                                        ? {
+                                            ...li,
+                                            gstRate: Number(e.target.value),
+                                          }
+                                        : li,
+                                    ),
+                                  )
+                                }
+                                className="w-20 px-1 py-1 text-xs rounded bg-stone-800 border border-stone-600 text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                              >
+                                {[0, 5, 12, 18, 28].map((r) => (
+                                  <option key={r} value={r}>
+                                    GST {r}%
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <p className="text-xs text-stone-400 text-right">
+                              ₹
+                              {(
+                                item.qty *
+                                item.rate *
+                                (1 + item.gstRate / 100)
+                              ).toLocaleString("en-IN", {
+                                maximumFractionDigits: 0,
+                              })}{" "}
+                              (incl. GST)
+                            </p>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setInvFormLineItems((prev) => [
+                              ...prev,
+                              {
+                                id: `li_${Date.now()}`,
+                                description: "",
+                                qty: 1,
+                                rate:
+                                  invFormAmount > 0
+                                    ? invFormAmount / 1.18
+                                    : 1000,
+                                gstRate: invFormGst,
+                              },
+                            ])
+                          }
+                          className="w-full text-xs py-1.5 rounded-lg border border-dashed border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition-colors"
+                        >
+                          + Add Product / Service
+                        </button>
+                        {invFormLineItems.length > 0 && (
+                          <div className="flex justify-between text-xs pt-1 border-t border-stone-700">
+                            <span className="text-stone-400">
+                              Total (incl. GST)
+                            </span>
+                            <span className="text-amber-400 font-semibold">
+                              ₹
+                              {invFormLineItems
+                                .reduce(
+                                  (s, i) =>
+                                    s + i.qty * i.rate * (1 + i.gstRate / 100),
+                                  0,
+                                )
+                                .toLocaleString("en-IN", {
+                                  maximumFractionDigits: 0,
+                                })}
+                            </span>
+                          </div>
+                        )}
+                        {invFormLineItems.length === 0 && (
+                          <div>
+                            <input
+                              type="number"
+                              value={invFormAmount}
+                              onChange={(e) =>
+                                setInvFormAmount(Number(e.target.value))
+                              }
+                              placeholder="Amount (₹)"
+                              className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                            />
+                            <p className="text-xs text-stone-500 mt-0.5">
+                              Or add products above for itemized invoice
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      {showNewProductForm && (
+                        <div className="p-2 rounded-lg bg-stone-900 border border-amber-500/30 space-y-1.5">
+                          <p className="text-xs text-amber-400 font-medium">
+                            New Product / Service
+                          </p>
+                          <input
+                            type="text"
+                            value={newProductName}
+                            onChange={(e) => setNewProductName(e.target.value)}
+                            placeholder="Product Name *"
+                            className="w-full px-2 py-1 text-xs rounded bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                          />
+                          <div className="flex gap-1">
+                            <input
+                              type="number"
+                              value={newProductRate}
+                              onChange={(e) =>
+                                setNewProductRate(Number(e.target.value))
+                              }
+                              placeholder="Price ₹"
+                              className="flex-1 px-2 py-1 text-xs rounded bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                            />
+                            <select
+                              value={newProductGst}
+                              onChange={(e) =>
+                                setNewProductGst(Number(e.target.value))
+                              }
+                              className="w-20 px-1 py-1 text-xs rounded bg-stone-800 border border-stone-600 text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                            >
+                              {[0, 5, 12, 18, 28].map((r) => (
+                                <option key={r} value={r}>
+                                  GST {r}%
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!newProductName.trim()) return;
+                                try {
+                                  const products = JSON.parse(
+                                    localStorage.getItem("saarathi_products") ||
+                                      "[]",
+                                  );
+                                  products.push({
+                                    id: `prod_${Date.now()}`,
+                                    name: newProductName.trim(),
+                                    price: newProductRate,
+                                    gstRate: newProductGst,
+                                    unit: "nos",
+                                    description: "",
+                                  });
+                                  localStorage.setItem(
+                                    "saarathi_products",
+                                    JSON.stringify(products),
+                                  );
+                                  window.dispatchEvent(
+                                    new CustomEvent(
+                                      "saarathi:products-updated",
+                                    ),
+                                  );
+                                  setInvFormLineItems((prev) => [
+                                    ...prev,
+                                    {
+                                      id: `li_${Date.now()}`,
+                                      description: newProductName.trim(),
+                                      qty: 1,
+                                      rate: newProductRate,
+                                      gstRate: newProductGst,
+                                    },
+                                  ]);
+                                } catch {}
+                                setNewProductName("");
+                                setNewProductRate(0);
+                                setNewProductGst(18);
+                                setShowNewProductForm(false);
+                                toast.success("Product added");
+                              }}
+                              className="flex-1 text-xs py-1 rounded bg-amber-500 hover:bg-amber-600 text-white"
+                            >
+                              Save & Add
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowNewProductForm(false)}
+                              className="px-3 text-xs py-1 rounded bg-stone-700 text-white"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       <textarea
                         value={invFormDesc}
                         onChange={(e) => setInvFormDesc(e.target.value)}
-                        placeholder="Description"
+                        placeholder="Notes (optional)"
                         rows={2}
                         className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
                       />
@@ -2884,7 +3291,11 @@ export default function ChatArea({
                     <div className="flex gap-2 pt-1">
                       <button
                         type="button"
-                        onClick={() => setInvoiceEditMode(false)}
+                        onClick={() => {
+                          setInvoiceEditMode(false);
+                          setShowNewClientForm(false);
+                          setShowNewProductForm(false);
+                        }}
                         className="flex-1 text-xs py-1.5 rounded-lg bg-stone-700 hover:bg-stone-600 text-white transition-colors"
                         data-ocid="messenger.auto_invoice.cancel_button"
                       >
@@ -2905,11 +3316,15 @@ export default function ChatArea({
                               (c: { name: string; id: string }) =>
                                 c.name === invFormClient,
                             )?.id;
-                            if (!clientId3) {
+                            if (!clientId3 && invFormClient) {
                               clientId3 = `client_auto_${Date.now()}`;
                               storedClients3.push({
                                 id: clientId3,
                                 name: invFormClient,
+                                phone: "",
+                                email: "",
+                                gstin: "",
+                                address: "",
                               });
                               localStorage.setItem(
                                 "saarathi_clients",
@@ -2917,28 +3332,36 @@ export default function ChatArea({
                               );
                             }
                             const invNum2 = `INV-${String(storedDocs3.filter((d: { type: string }) => d.type === "invoice").length + 1).padStart(3, "0")}`;
-                            const baseRate =
-                              invFormAmount / (1 + invFormGst / 100);
-                            const newInv2 = {
+                            const lineItemsToSave =
+                              invFormLineItems.length > 0
+                                ? invFormLineItems.map((li) => ({
+                                    id: li.id,
+                                    description: li.description || invFormDesc,
+                                    qty: li.qty,
+                                    rate: li.rate,
+                                    gstRate: li.gstRate,
+                                  }))
+                                : [
+                                    {
+                                      id: "li1",
+                                      description: invFormDesc,
+                                      qty: 1,
+                                      rate:
+                                        invFormAmount / (1 + invFormGst / 100),
+                                      gstRate: invFormGst,
+                                    },
+                                  ];
+                            storedDocs3.push({
                               id: `inv_edit_${Date.now()}`,
                               type: "invoice",
                               number: invNum2,
                               date: invFormDate,
                               dueDate: invFormDate,
-                              clientId: clientId3,
+                              clientId: clientId3 || "",
                               status: "sent",
-                              notes: "",
-                              lineItems: [
-                                {
-                                  id: "li1",
-                                  description: invFormDesc,
-                                  qty: 1,
-                                  rate: baseRate,
-                                  gstRate: invFormGst,
-                                },
-                              ],
-                            };
-                            storedDocs3.push(newInv2);
+                              notes: invFormDesc,
+                              lineItems: lineItemsToSave,
+                            });
                             localStorage.setItem(
                               "saarathi_business_docs",
                               JSON.stringify(storedDocs3),
@@ -2952,6 +3375,9 @@ export default function ChatArea({
                           } catch {}
                           setInvoiceEditMode(false);
                           setShowAutoInvoice(false);
+                          setShowNewClientForm(false);
+                          setShowNewProductForm(false);
+                          setInvFormLineItems([]);
                           toast.success("Invoice created successfully");
                         }}
                         className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors"
