@@ -926,7 +926,7 @@ function MessageBubble({
   if (msg.msgType === "task_request") {
     return (
       <div
-        className={`flex gap-2.5 ${isOwn ? "flex-row-reverse" : "flex-row"}`}
+        className={`flex gap-2.5 min-w-0 ${isOwn ? "flex-row-reverse" : "flex-row"}`}
       >
         {!isOwn && (
           <Avatar className="w-7 h-7 flex-shrink-0 mt-0.5">
@@ -938,7 +938,7 @@ function MessageBubble({
           </Avatar>
         )}
         <div
-          className={`flex flex-col gap-0.5 ${isOwn ? "items-end" : "items-start"}`}
+          className={`flex flex-col gap-0.5 min-w-0 ${isOwn ? "items-end" : "items-start"}`}
         >
           {!isOwn && (
             <span className="text-[11px] font-semibold text-muted-foreground px-1">
@@ -964,7 +964,7 @@ function MessageBubble({
   if (msg.msgType === "business_doc") {
     return (
       <div
-        className={`flex gap-2.5 ${isOwn ? "flex-row-reverse" : "flex-row"}`}
+        className={`flex gap-2.5 min-w-0 ${isOwn ? "flex-row-reverse" : "flex-row"}`}
       >
         {!isOwn && (
           <Avatar className="w-7 h-7 flex-shrink-0 mt-0.5">
@@ -976,7 +976,7 @@ function MessageBubble({
           </Avatar>
         )}
         <div
-          className={`flex flex-col gap-0.5 ${isOwn ? "items-end" : "items-start"}`}
+          className={`flex flex-col gap-0.5 min-w-0 ${isOwn ? "items-end" : "items-start"}`}
         >
           {!isOwn && (
             <span className="text-[11px] font-semibold text-muted-foreground px-1">
@@ -1008,7 +1008,7 @@ function MessageBubble({
         </Avatar>
       )}
       <div
-        className={`max-w-[72%] ${
+        className={`max-w-[72%] min-w-0 ${
           isOwn ? "items-end" : "items-start"
         } flex flex-col gap-0.5`}
       >
@@ -1029,7 +1029,7 @@ function MessageBubble({
           }`}
         >
           {msg.msgType === "text" && (
-            <p className="whitespace-pre-wrap">{msg.content}</p>
+            <p className="whitespace-pre-wrap break-words">{msg.content}</p>
           )}
           {msg.msgType === "image" && msg.blobUrl && (
             <div className="relative group/img">
@@ -1299,6 +1299,243 @@ interface Props {
   onNavigate?: (page: string) => void;
 }
 
+// ──────────────────────────────────────────────────────────
+// InlineDockAIPanel — docked right-side AI assistant panel
+// ──────────────────────────────────────────────────────────
+interface InlineDockAIPanelProps {
+  messages: LocalMessage[];
+  onClose: () => void;
+  input: string;
+  setInput: (v: string) => void;
+  onCreateTask: (fields: {
+    who: string;
+    what: string;
+    when: string;
+    where: string;
+    why: string;
+  }) => void;
+  onCreateInvoice: (client: string, amount: number) => void;
+  onCreateProposal: (fields: {
+    client: string;
+    title: string;
+    amount: number;
+  }) => void;
+  onAIReply: () => void;
+}
+
+function InlineDockAIPanel({
+  messages,
+  onClose,
+  input,
+  setInput,
+  onCreateTask,
+  onCreateInvoice,
+  onCreateProposal,
+  onAIReply,
+}: InlineDockAIPanelProps) {
+  const lastThree = messages.slice(-3);
+  const lastMsgText = messages[messages.length - 1]?.content ?? "";
+  const lower = lastMsgText.toLowerCase();
+
+  const proactiveSuggestions: { label: string; action: () => void }[] = [];
+  if (lower.includes("meet") || lower.includes("call")) {
+    proactiveSuggestions.push({
+      label: "📌 Schedule Meeting",
+      action: () =>
+        onCreateTask({
+          who: "",
+          what: `Schedule: ${lastMsgText.slice(0, 40)}`,
+          when: "tomorrow",
+          where: "",
+          why: "",
+        }),
+    });
+  }
+  if (lower.includes("invoice") || lower.includes("payment")) {
+    proactiveSuggestions.push({
+      label: "💰 Create Invoice",
+      action: () => onCreateInvoice("", 10000),
+    });
+  }
+  if (
+    lower.includes("send") ||
+    lower.includes("review") ||
+    lower.includes("follow")
+  ) {
+    proactiveSuggestions.push({
+      label: "📌 Create Task",
+      action: () =>
+        onCreateTask({
+          who: "",
+          what: lastMsgText.slice(0, 60),
+          when: "today",
+          where: "",
+          why: "",
+        }),
+    });
+  }
+  if (lower.includes("proposal") || lower.includes("quote")) {
+    proactiveSuggestions.push({
+      label: "📋 Create Proposal",
+      action: () =>
+        onCreateProposal({
+          client: "",
+          title: lastMsgText.slice(0, 50),
+          amount: 10000,
+        }),
+    });
+  }
+  proactiveSuggestions.push({ label: "✨ Draft Reply", action: onAIReply });
+
+  function handleCommand() {
+    const cmd = input.trim().toLowerCase();
+    if (!cmd) return;
+    const capitalizedWords = input.match(/\b[A-Z][a-z]+\b/g) ?? [];
+    const amountMatch = input.match(/₹?\s*(\d[\d,]*)/);
+    const amount = amountMatch
+      ? Number.parseInt(amountMatch[1].replace(/,/g, ""), 10)
+      : 10000;
+    const entityName = capitalizedWords[0] ?? "";
+
+    if (cmd.includes("create task") || cmd.includes("task for")) {
+      onCreateTask({
+        who: entityName,
+        what:
+          input
+            .replace(/create task|task for/gi, "")
+            .trim()
+            .slice(0, 60) || "Follow up",
+        when: cmd.includes("tomorrow") ? "tomorrow" : "today",
+        where: "",
+        why: "",
+      });
+    } else if (cmd.includes("create invoice") || cmd.includes("invoice for")) {
+      onCreateInvoice(entityName, amount);
+    } else if (
+      cmd.includes("create proposal") ||
+      cmd.includes("proposal for")
+    ) {
+      onCreateProposal({
+        client: entityName,
+        title: input
+          .replace(/create proposal|proposal for/gi, "")
+          .trim()
+          .slice(0, 60),
+        amount,
+      });
+    } else if (cmd.includes("reply") || cmd.includes("draft")) {
+      onAIReply();
+    } else {
+      onAIReply();
+    }
+    setInput("");
+  }
+
+  return (
+    <div
+      className="w-72 flex-shrink-0 flex flex-col border-l bg-[#1a1a1a] border-[#2d2d2d] overflow-hidden"
+      data-ocid="messenger.ai_panel.panel"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#2d2d2d] flex-shrink-0">
+        <span className="text-sm font-semibold text-amber-400">
+          ✨ AI Assistant
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-stone-500 hover:text-stone-300 text-xs"
+          data-ocid="messenger.ai_panel.close_button"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Context card */}
+      {lastThree.length > 0 && (
+        <div className="mx-3 mt-2.5 p-2.5 rounded-lg bg-stone-900 border border-[#2d2d2d] flex-shrink-0">
+          <p className="text-[10px] text-stone-500 font-medium mb-1.5 uppercase tracking-wide">
+            Recent context
+          </p>
+          {lastThree.map((m) => (
+            <p key={m.id} className="text-xs text-stone-400 truncate leading-5">
+              <span className="text-stone-500">
+                {m.senderName?.split(" ")[0] ?? "User"}:
+              </span>{" "}
+              <span>
+                {m.content.slice(0, 50)}
+                {m.content.length > 50 ? "…" : ""}
+              </span>
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* Proactive suggestions */}
+      {proactiveSuggestions.length > 0 && (
+        <div className="px-3 mt-2.5 flex-shrink-0">
+          <p className="text-[10px] text-stone-500 uppercase tracking-wide mb-1.5">
+            Suggestions
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {proactiveSuggestions.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                onClick={s.action}
+                className="text-xs px-2.5 py-1 rounded-full border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition-colors"
+                data-ocid="messenger.ai_panel.suggestion.button"
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Command input */}
+      <div className="px-3 pb-3 flex-shrink-0 border-t border-[#2d2d2d] pt-3">
+        <p className="text-[10px] text-stone-500 uppercase tracking-wide mb-1.5">
+          Command
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleCommand();
+              }
+            }}
+            placeholder="e.g. create invoice for Priya"
+            className="flex-1 min-w-0 px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+            data-ocid="messenger.ai_panel.input"
+          />
+          <button
+            type="button"
+            onClick={handleCommand}
+            className="px-2.5 py-1.5 text-xs rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium transition-colors flex-shrink-0"
+            data-ocid="messenger.ai_panel.send_button"
+          >
+            Send
+          </button>
+        </div>
+        <div className="mt-2 space-y-1">
+          <p className="text-[10px] text-stone-600">
+            Try: "create task for Ravi", "invoice for Girish ₹35000", "draft
+            reply"
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ChatArea({
   currentChat,
   messages,
@@ -1340,6 +1577,22 @@ export default function ChatArea({
   const [requestChangeMsg, setRequestChangeMsg] = useState<LocalMessage | null>(
     null,
   );
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [aiPanelInput, setAiPanelInput] = useState("");
+  const [showInlineTask, setShowInlineTask] = useState(false);
+  const [taskFields, setTaskFields] = useState({
+    who: "",
+    what: "",
+    when: "",
+    where: "",
+    why: "",
+  });
+  const [showInlineProposal, setShowInlineProposal] = useState(false);
+  const [proposalFields, setProposalFields] = useState({
+    client: "",
+    title: "",
+    amount: 10000,
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const msgCount = messages.length;
@@ -1672,32 +1925,21 @@ export default function ChatArea({
     const lastFive = messages.slice(-5);
     const allText = lastFive.map((m) => m.content).join(" ");
     const capitalizedWords = allText.match(/\b[A-Z][a-z]+\b/g) ?? [];
-    const who = [...new Set(capitalizedWords)].slice(0, 2);
+    const whoArr = [...new Set(capitalizedWords)].slice(0, 2);
     const what = (
       lastFive[lastFive.length - 1]?.content ?? "Follow up task"
     ).slice(0, 60);
     let when = "today";
     if (allText.toLowerCase().includes("tomorrow")) when = "tomorrow";
     else if (allText.toLowerCase().includes("next week")) when = "next week";
-    const prefill = {
-      who,
+    setTaskFields({
+      who: whoArr.join(", "),
       what,
       when,
-      chatTarget: {
-        type: currentChat?.type,
-        name:
-          currentChat?.type === "dm"
-            ? (currentChat as { displayName: string }).displayName
-            : (currentChat as { name: string }).name,
-      },
-    };
-    try {
-      localStorage.setItem(
-        "saarathi_prefill_activity",
-        JSON.stringify(prefill),
-      );
-    } catch {}
-    if (onNavigate) onNavigate("activities");
+      where: "",
+      why: "",
+    });
+    setShowInlineTask(true);
     toast.info("AI suggestion ready");
   }
 
@@ -1710,11 +1952,19 @@ export default function ChatArea({
       /\b[A-Z][a-z]+\s+(?:Industries|Pvt|Ltd|Exports|Trading|Co|Group)\b/g,
     );
     const clientName = companyMatch?.[0] ?? "";
-    const prefill = { clientName, chatContext: allText.slice(0, 200) };
-    try {
-      localStorage.setItem("saarathi_prefill_invoice", JSON.stringify(prefill));
-    } catch {}
-    if (onNavigate) onNavigate("business");
+    const invoiceData = computeAutoInvoice(allText);
+    setInvFormClient(clientName || invoiceData.client);
+    setInvFormAmount(invoiceData.amount);
+    setInvFormGst(18);
+    setInvFormDate(new Date().toISOString().slice(0, 10));
+    setInvFormDesc("Professional services");
+    setAutoInvoiceData({
+      client: clientName || invoiceData.client,
+      amount: invoiceData.amount,
+      basedOnPrevious: invoiceData.basedOnPrevious,
+    });
+    setShowAutoInvoice(true);
+    setInvoiceEditMode(true);
     toast.info("AI suggestion ready");
   }
 
@@ -1771,7 +2021,7 @@ export default function ChatArea({
   const isGroupChat = currentChat.type === "group";
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-background">
+    <div className="flex-1 flex flex-col overflow-hidden min-w-0 bg-background">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card flex-shrink-0">
         {isMobile && (
@@ -1823,6 +2073,16 @@ export default function ChatArea({
             <Settings className="w-4 h-4" />
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setShowAIPanel((v) => !v)}
+          className={`w-8 h-8 transition-colors ${showAIPanel ? "text-amber-400 bg-amber-500/10" : "text-muted-foreground hover:text-amber-400"}`}
+          data-ocid="messenger.ai_panel.toggle"
+          title="Toggle AI Assistant"
+        >
+          <span className="text-sm">✨</span>
+        </Button>
       </div>
 
       {/* Workspace context strip for group chats */}
@@ -1889,34 +2149,69 @@ export default function ChatArea({
             value="chat"
             className="flex-1 flex flex-col overflow-hidden mt-0 data-[state=inactive]:hidden"
           >
-            <div
-              ref={scrollRef}
-              className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
-            >
-              {messages.length === 0 && (
+            <div className="flex flex-1 overflow-hidden min-h-0">
+              <div className="flex flex-col flex-1 overflow-hidden min-h-0">
                 <div
-                  className="flex flex-col items-center justify-center h-full text-center"
-                  data-ocid="messenger.messages.empty_state"
+                  ref={scrollRef}
+                  className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
                 >
-                  <p className="text-muted-foreground text-sm">
-                    Start conversation or use AI to draft message ✨ — use the
-                    AI Action Bar below
-                  </p>
+                  {messages.length === 0 && (
+                    <div
+                      className="flex flex-col items-center justify-center h-full text-center"
+                      data-ocid="messenger.messages.empty_state"
+                    >
+                      <p className="text-muted-foreground text-sm">
+                        Start conversation or use AI to draft message ✨ — use
+                        the AI Action Bar below
+                      </p>
+                    </div>
+                  )}
+                  {messages.map((msg) => (
+                    <MessageBubble
+                      key={msg.id}
+                      msg={msg}
+                      isOwn={msg.senderId === currentUserId}
+                      onUpdateTaskStatus={onUpdateTaskStatus}
+                      onOpenRequestChange={setRequestChangeMsg}
+                      onAcceptChangeRequest={handleAcceptChangeRequest}
+                      onRejectChangeRequest={handleRejectChangeRequest}
+                    />
+                  ))}
                 </div>
-              )}
-              {messages.map((msg) => (
-                <MessageBubble
-                  key={msg.id}
-                  msg={msg}
-                  isOwn={msg.senderId === currentUserId}
-                  onUpdateTaskStatus={onUpdateTaskStatus}
-                  onOpenRequestChange={setRequestChangeMsg}
-                  onAcceptChangeRequest={handleAcceptChangeRequest}
-                  onRejectChangeRequest={handleRejectChangeRequest}
+                {renderComposer()}
+              </div>
+              {showAIPanel && (
+                <InlineDockAIPanel
+                  messages={messages}
+                  onClose={() => setShowAIPanel(false)}
+                  input={aiPanelInput}
+                  setInput={setAiPanelInput}
+                  onCreateTask={(fields) => {
+                    setTaskFields(fields);
+                    setShowInlineTask(true);
+                  }}
+                  onCreateInvoice={(client, amount) => {
+                    setInvFormClient(client);
+                    setInvFormAmount(amount);
+                    setInvFormGst(18);
+                    setInvFormDate(new Date().toISOString().slice(0, 10));
+                    setInvFormDesc("Professional services");
+                    setAutoInvoiceData({
+                      client,
+                      amount,
+                      basedOnPrevious: false,
+                    });
+                    setShowAutoInvoice(true);
+                    setInvoiceEditMode(true);
+                  }}
+                  onCreateProposal={(fields) => {
+                    setProposalFields(fields);
+                    setShowInlineProposal(true);
+                  }}
+                  onAIReply={handleAIReply}
                 />
-              ))}
+              )}
             </div>
-            {renderComposer()}
           </TabsContent>
 
           {/* Tasks tab */}
@@ -1936,35 +2231,64 @@ export default function ChatArea({
         </Tabs>
       ) : (
         /* DM: standard messages + composer */
-        <>
-          <div
-            ref={scrollRef}
-            className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
-          >
-            {messages.length === 0 && (
-              <div
-                className="flex flex-col items-center justify-center h-full text-center"
-                data-ocid="messenger.messages.empty_state"
-              >
-                <p className="text-muted-foreground text-sm">
-                  Start conversation or use AI to draft message ✨
-                </p>
-              </div>
-            )}
-            {messages.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                msg={msg}
-                isOwn={msg.senderId === currentUserId}
-                onUpdateTaskStatus={onUpdateTaskStatus}
-                onOpenRequestChange={setRequestChangeMsg}
-                onAcceptChangeRequest={handleAcceptChangeRequest}
-                onRejectChangeRequest={handleRejectChangeRequest}
-              />
-            ))}
+        <div className="flex flex-1 overflow-hidden min-h-0">
+          <div className="flex flex-col flex-1 overflow-hidden min-h-0">
+            <div
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+            >
+              {messages.length === 0 && (
+                <div
+                  className="flex flex-col items-center justify-center h-full text-center"
+                  data-ocid="messenger.messages.empty_state"
+                >
+                  <p className="text-muted-foreground text-sm">
+                    Start conversation or use AI to draft message ✨
+                  </p>
+                </div>
+              )}
+              {messages.map((msg) => (
+                <MessageBubble
+                  key={msg.id}
+                  msg={msg}
+                  isOwn={msg.senderId === currentUserId}
+                  onUpdateTaskStatus={onUpdateTaskStatus}
+                  onOpenRequestChange={setRequestChangeMsg}
+                  onAcceptChangeRequest={handleAcceptChangeRequest}
+                  onRejectChangeRequest={handleRejectChangeRequest}
+                />
+              ))}
+            </div>
+            {renderComposer()}
           </div>
-          {renderComposer()}
-        </>
+          {showAIPanel && (
+            <InlineDockAIPanel
+              messages={messages}
+              onClose={() => setShowAIPanel(false)}
+              input={aiPanelInput}
+              setInput={setAiPanelInput}
+              onCreateTask={(fields) => {
+                setTaskFields(fields);
+                setShowInlineTask(true);
+              }}
+              onCreateInvoice={(client, amount) => {
+                setInvFormClient(client);
+                setInvFormAmount(amount);
+                setInvFormGst(18);
+                setInvFormDate(new Date().toISOString().slice(0, 10));
+                setInvFormDesc("Professional services");
+                setAutoInvoiceData({ client, amount, basedOnPrevious: false });
+                setShowAutoInvoice(true);
+                setInvoiceEditMode(true);
+              }}
+              onCreateProposal={(fields) => {
+                setProposalFields(fields);
+                setShowInlineProposal(true);
+              }}
+              onAIReply={handleAIReply}
+            />
+          )}
+        </div>
       )}
 
       {/* AI Reply Preview Dialog */}
@@ -2051,6 +2375,272 @@ export default function ChatArea({
           </div>
         ) : (
           <>
+            {/* Inline Task Card */}
+            {showInlineTask && (
+              <div
+                className="mb-2 p-3 rounded-xl border border-blue-500/40 bg-blue-950/30"
+                data-ocid="messenger.inline_task.card"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-blue-400 font-semibold text-sm">
+                    📌 New Task
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowInlineTask(false)}
+                    className="ml-auto text-stone-500 hover:text-stone-300 text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  <input
+                    type="text"
+                    value={taskFields.who}
+                    onChange={(e) =>
+                      setTaskFields((p) => ({ ...p, who: e.target.value }))
+                    }
+                    placeholder="Who (assignee)"
+                    className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    data-ocid="messenger.inline_task.input"
+                  />
+                  <input
+                    type="text"
+                    value={taskFields.what}
+                    onChange={(e) =>
+                      setTaskFields((p) => ({ ...p, what: e.target.value }))
+                    }
+                    placeholder="What (task description)"
+                    className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  />
+                  <input
+                    type="text"
+                    value={taskFields.when}
+                    onChange={(e) =>
+                      setTaskFields((p) => ({ ...p, when: e.target.value }))
+                    }
+                    placeholder="When (due date/time)"
+                    className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  />
+                  <input
+                    type="text"
+                    value={taskFields.where}
+                    onChange={(e) =>
+                      setTaskFields((p) => ({ ...p, where: e.target.value }))
+                    }
+                    placeholder="Where (location, optional)"
+                    className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  />
+                  <textarea
+                    value={taskFields.why}
+                    onChange={(e) =>
+                      setTaskFields((p) => ({ ...p, why: e.target.value }))
+                    }
+                    placeholder="Why (reason/context, optional)"
+                    rows={2}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
+                  />
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowInlineTask(false)}
+                    className="flex-1 text-xs py-1.5 rounded-lg bg-stone-700 hover:bg-stone-600 text-white transition-colors"
+                    data-ocid="messenger.inline_task.cancel_button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!taskFields.what.trim()) return;
+                      try {
+                        const acts = JSON.parse(
+                          localStorage.getItem("saarathi_activities") || "[]",
+                        );
+                        acts.push({
+                          id: `act_${Date.now()}`,
+                          who: taskFields.who
+                            ? taskFields.who
+                                .split(",")
+                                .map((s: string) => s.trim())
+                                .filter(Boolean)
+                            : [],
+                          what: taskFields.what,
+                          when: taskFields.when || "today",
+                          where: taskFields.where,
+                          why: taskFields.why,
+                          status: "pending",
+                          createdAt: new Date().toISOString(),
+                          sourceChat: true,
+                        });
+                        localStorage.setItem(
+                          "saarathi_activities",
+                          JSON.stringify(acts),
+                        );
+                      } catch {}
+                      onSendMessage(
+                        `📌 Task created: ${taskFields.what}${taskFields.who ? ` — assigned to ${taskFields.who}` : ""}`,
+                      );
+                      setShowInlineTask(false);
+                      setTaskFields({
+                        who: "",
+                        what: "",
+                        when: "",
+                        where: "",
+                        why: "",
+                      });
+                      toast.success("Task created");
+                    }}
+                    className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors"
+                    data-ocid="messenger.inline_task.submit_button"
+                  >
+                    Create Task
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Inline Proposal Card */}
+            {showInlineProposal && (
+              <div
+                className="mb-2 p-3 rounded-xl border border-purple-500/40 bg-purple-950/30"
+                data-ocid="messenger.inline_proposal.card"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-purple-400 font-semibold text-sm">
+                    📋 New Proposal
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowInlineProposal(false)}
+                    className="ml-auto text-stone-500 hover:text-stone-300 text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  <input
+                    type="text"
+                    value={proposalFields.client}
+                    onChange={(e) =>
+                      setProposalFields((p) => ({
+                        ...p,
+                        client: e.target.value,
+                      }))
+                    }
+                    placeholder="Client Name"
+                    className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    data-ocid="messenger.inline_proposal.input"
+                  />
+                  <input
+                    type="text"
+                    value={proposalFields.title}
+                    onChange={(e) =>
+                      setProposalFields((p) => ({
+                        ...p,
+                        title: e.target.value,
+                      }))
+                    }
+                    placeholder="Proposal Title"
+                    className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  />
+                  <input
+                    type="number"
+                    value={proposalFields.amount}
+                    onChange={(e) =>
+                      setProposalFields((p) => ({
+                        ...p,
+                        amount: Number(e.target.value),
+                      }))
+                    }
+                    placeholder="Amount (₹)"
+                    className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  />
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowInlineProposal(false)}
+                    className="flex-1 text-xs py-1.5 rounded-lg bg-stone-700 hover:bg-stone-600 text-white transition-colors"
+                    data-ocid="messenger.inline_proposal.cancel_button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!proposalFields.client.trim()) return;
+                      try {
+                        const docs = JSON.parse(
+                          localStorage.getItem("saarathi_business_docs") ||
+                            "[]",
+                        );
+                        const propNum = `PROP-${String(docs.filter((d: { type: string }) => d.type === "proposal").length + 1).padStart(3, "0")}`;
+                        const storedClients = JSON.parse(
+                          localStorage.getItem("saarathi_clients") || "[]",
+                        );
+                        let clientId = storedClients.find(
+                          (c: { name: string }) =>
+                            c.name === proposalFields.client,
+                        )?.id;
+                        if (!clientId) {
+                          clientId = `client_prop_${Date.now()}`;
+                          storedClients.push({
+                            id: clientId,
+                            name: proposalFields.client,
+                          });
+                          localStorage.setItem(
+                            "saarathi_clients",
+                            JSON.stringify(storedClients),
+                          );
+                        }
+                        docs.push({
+                          id: `prop_${Date.now()}`,
+                          type: "proposal",
+                          number: propNum,
+                          date: new Date().toISOString().slice(0, 10),
+                          clientId,
+                          status: "draft",
+                          notes: proposalFields.title,
+                          lineItems: [
+                            {
+                              id: "1",
+                              description: proposalFields.title || "Services",
+                              qty: 1,
+                              rate: proposalFields.amount,
+                              gstRate: 18,
+                            },
+                          ],
+                        });
+                        localStorage.setItem(
+                          "saarathi_business_docs",
+                          JSON.stringify(docs),
+                        );
+                        window.dispatchEvent(
+                          new CustomEvent("saarathi:docs-updated"),
+                        );
+                      } catch {}
+                      onSendMessage(
+                        `📋 Proposal ${proposalFields.title ? `"${proposalFields.title}" ` : ""}sent to ${proposalFields.client}`,
+                      );
+                      setShowInlineProposal(false);
+                      setProposalFields({
+                        client: "",
+                        title: "",
+                        amount: 10000,
+                      });
+                      toast.success("Proposal created");
+                    }}
+                    className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-colors"
+                    data-ocid="messenger.inline_proposal.submit_button"
+                  >
+                    Send Proposal
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Smart typing suggestions — contextual chips */}
             {!chipsHidden && contextualChips.length > 0 && (
               <div
@@ -2114,11 +2704,14 @@ export default function ChatArea({
               >
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-amber-400 font-semibold text-sm">
-                    💰 Invoice Draft Ready
+                    💰 Invoice Draft
                   </span>
                   <button
                     type="button"
-                    onClick={() => setShowAutoInvoice(false)}
+                    onClick={() => {
+                      setShowAutoInvoice(false);
+                      setInvoiceEditMode(false);
+                    }}
                     className="ml-auto text-stone-500 hover:text-stone-300 text-xs"
                   >
                     ✕

@@ -497,20 +497,22 @@ export default function AppLayout() {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-auto">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activePage}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.2 }}
-              className="h-full"
-            >
-              {PAGE_COMPONENTS[activePage]}
-            </motion.div>
-          </AnimatePresence>
+        {/* Page content — fills remaining height, each page manages its own scrolling */}
+        <main className="flex-1 overflow-hidden flex flex-col min-h-0">
+          <div className="flex-1 overflow-hidden min-h-0">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activePage}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+                className="h-full"
+              >
+                {PAGE_COMPONENTS[activePage]}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </main>
       </div>
       <AIChatPanel />
