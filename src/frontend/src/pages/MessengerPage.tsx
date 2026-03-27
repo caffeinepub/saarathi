@@ -1,7 +1,9 @@
 import { Compass, MessageSquarePlus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useActor } from "../hooks/useActor";
 import { dataStore } from "../store/dataStore";
+import { asExtended } from "../utils/backendExtensions";
 import ChatArea from "./messenger/ChatArea";
 import MessengerSidebar from "./messenger/MessengerSidebar";
 import {
@@ -370,8 +372,11 @@ function OnboardingModal({ onDone }: { onDone: () => void }) {
 
 export default function MessengerPage({ onNavigate }: MessengerPageProps) {
   const { profile } = useAuth();
+  const { actor } = useActor();
   const currentUserId = profile?.username || "me";
   const currentDisplayName = profile?.displayName || profile?.username || "You";
+  // Map username -> principal string for backend DM calls
+  const [principalMap, setPrincipalMap] = useState<Record<string, string>>({});
 
   const [showOnboarding, setShowOnboarding] = useState(() => {
     try {
@@ -445,6 +450,69 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  // Load real groups + DM contacts from backend on actor ready
+  useEffect(() => {
+    if (!actor) return;
+    let cancelled = false;
+    async function loadBackendData() {
+      if (!actor) return;
+      try {
+        const ext = asExtended(actor);
+        const [backendGroups, dmConversations] = await Promise.all([
+          ext.listMyGroups(),
+          ext.listDMConversations(),
+        ]);
+        if (cancelled) return;
+        // Merge backend groups (non-demo)
+        if (backendGroups.length > 0) {
+          setGroups((prev) => {
+            const existingIds = new Set(prev.map((g) => g.id));
+            const newGroups = backendGroups
+              .filter((bg) => bg.parentGroupId.length === 0) // top-level only from listMyGroups
+              .filter((bg) => !existingIds.has(bg.id))
+              .map((bg) => ({
+                id: bg.id,
+                name: bg.name,
+                description: bg.description,
+                creatorId: bg.creator.toString(),
+                members: bg.members.map((m) => m.toString()),
+                admins: bg.admins.map((a) => a.toString()),
+                onlyAdminsCanPost: "adminsOnly" in bg.postPermission,
+                depth: 0,
+                isDemo: false,
+              }));
+            return newGroups.length > 0 ? [...prev, ...newGroups] : prev;
+          });
+        }
+        // Merge DM contacts from backend
+        if (dmConversations.length > 0) {
+          const principalMapUpdate: Record<string, string> = {};
+          setDmContacts((prev) => {
+            const existingIds = new Set(prev.map((u) => u.id));
+            const newContacts = dmConversations
+              .filter((pu) => !existingIds.has(pu.username))
+              .map((pu) => {
+                principalMapUpdate[pu.username] = pu.principal.toString();
+                return {
+                  id: pu.username,
+                  displayName: pu.displayName || pu.username,
+                  username: pu.username,
+                };
+              });
+            return newContacts.length > 0 ? [...prev, ...newContacts] : prev;
+          });
+          setPrincipalMap((prev) => ({ ...prev, ...principalMapUpdate }));
+        }
+      } catch {
+        // Backend unavailable — continue with localStorage data
+      }
+    }
+    loadBackendData();
+    return () => {
+      cancelled = true;
+    };
+  }, [actor]);
+
   // Persist groups so other modules (5W) can read them
   useEffect(() => {
     dataStore.setGroups(groups);
@@ -505,6 +573,86 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
       );
     } catch {}
   }, [dmContacts]);
+
+  // Poll backend for new messages in non-demo groups (every 5 seconds)
+  // eslint-disable-next-line
+  useEffect(() => {
+    if (!actor || !currentChat) return;
+    const nonDemoGroup =
+      currentChat.type === "group"
+        ? groups.find((g) => g.id === currentChat.groupId && !g.isDemo)
+        : null;
+    const isDMWithPrincipal =
+      currentChat.type === "dm" && principalMap[currentChat.userId];
+    if (!nonDemoGroup && !isDMWithPrincipal) return;
+
+    async function pollMessages() {
+      if (!actor) return;
+      try {
+        let canisterMsgs: Array<{
+          id: string;
+          sender?: { toString(): string };
+          from_?: { toString(): string };
+          content: string;
+          timestamp: bigint;
+        }> = [];
+        if (nonDemoGroup && currentChat && currentChat.type === "group") {
+          canisterMsgs = await asExtended(actor).getGroupMessages(
+            currentChat.groupId,
+          );
+        } else if (
+          isDMWithPrincipal &&
+          currentChat &&
+          currentChat.type === "dm"
+        ) {
+          const principalStr = principalMap[currentChat.userId];
+          const { Principal } = await import("@icp-sdk/core/principal");
+          canisterMsgs = await asExtended(actor).getDirectMessages(
+            Principal.fromText(principalStr),
+          );
+        }
+        if (canisterMsgs.length === 0) return;
+        const chatKeyStr =
+          currentChat && currentChat.type === "group"
+            ? `group_${currentChat.groupId}`
+            : currentChat && currentChat.type === "dm"
+              ? `dm_${currentChat.userId}`
+              : "";
+        if (!chatKeyStr) return;
+        setMessages((prev) => {
+          const existing = prev[chatKeyStr] ?? [];
+          const existingIds = new Set(existing.map((m) => m.id));
+          const newMsgs = canisterMsgs
+            .filter((m) => !existingIds.has(m.id))
+            .map((m) => {
+              const senderPrincipal = m.sender ?? m.from_;
+              const senderStr = senderPrincipal
+                ? senderPrincipal.toString()
+                : "unknown";
+              return {
+                id: m.id,
+                senderId: senderStr,
+                senderName: `${senderStr.slice(0, 8)}…`,
+                content: m.content,
+                msgType: "text" as const,
+                timestamp: Number(m.timestamp / 1_000_000n),
+              };
+            });
+          if (newMsgs.length === 0) return prev;
+          const merged = [...existing, ...newMsgs].sort(
+            (a, b) => a.timestamp - b.timestamp,
+          );
+          return { ...prev, [chatKeyStr]: merged };
+        });
+      } catch {
+        // Polling error — silently ignore
+      }
+    }
+
+    pollMessages(); // Immediate fetch on chat open
+    const interval = setInterval(pollMessages, 5000);
+    return () => clearInterval(interval);
+  }, [actor, currentChat, groups, principalMap]);
 
   // Inject pending task messages written by AI panel
   useEffect(() => {
@@ -584,8 +732,42 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
         ...prev,
         [key]: [...(prev[key] ?? []), newMsg],
       }));
+
+      // Also send to backend for non-demo chats (text messages only)
+      if (actor && !file && msgType === "text") {
+        if (currentChat.type === "group") {
+          const group = groups.find((g) => g.id === currentChat.groupId);
+          if (group && !group.isDemo) {
+            asExtended(actor)
+              .sendGroupMessage(currentChat.groupId, content, [], {
+                text_: null,
+              })
+              .catch(() => {});
+          }
+        } else if (currentChat.type === "dm") {
+          const principalStr = principalMap[currentChat.userId];
+          if (principalStr) {
+            // Import Principal dynamically to avoid circular deps
+            import("@icp-sdk/core/principal")
+              .then(({ Principal }) => {
+                const toPrincipal = Principal.fromText(principalStr);
+                asExtended(actor)
+                  .sendDirectMessage(toPrincipal, content, [], { text_: null })
+                  .catch(() => {});
+              })
+              .catch(() => {});
+          }
+        }
+      }
     },
-    [currentChat, currentUserId, currentDisplayName],
+    [
+      currentChat,
+      currentUserId,
+      currentDisplayName,
+      actor,
+      groups,
+      principalMap,
+    ],
   );
 
   const handleSendTaskRequest = useCallback(
@@ -658,9 +840,10 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
   }, []);
 
   const handleCreateGroup = useCallback(
-    (name: string, description: string) => {
+    async (name: string, description: string) => {
+      const localId = `g_${Date.now()}`;
       const newGroup: LocalGroup = {
-        id: `g_${Date.now()}`,
+        id: localId,
         name,
         description,
         creatorId: currentUserId,
@@ -668,19 +851,37 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
         admins: [currentUserId],
         onlyAdminsCanPost: false,
         depth: 0,
+        isDemo: false,
       };
       setGroups((prev) => [...prev, newGroup]);
-      setCurrentChat({ type: "group", groupId: newGroup.id, name });
+      setCurrentChat({ type: "group", groupId: localId, name });
       setMobileShowChat(true);
+      // Also create on backend and update the group id
+      if (actor) {
+        try {
+          const backendId = await asExtended(actor).createGroup(
+            name,
+            description,
+          );
+          if (backendId && backendId !== localId) {
+            setGroups((prev) =>
+              prev.map((g) => (g.id === localId ? { ...g, id: backendId } : g)),
+            );
+            setCurrentChat({ type: "group", groupId: backendId, name });
+          }
+        } catch {
+          // Backend unavailable — keep local group
+        }
+      }
     },
-    [currentUserId],
+    [currentUserId, actor],
   );
 
   const handleCreateSubgroup = useCallback(
-    (parentId: string, name: string, description: string) => {
-      const newSubgroupId = `g_sub_${Date.now()}`;
+    async (parentId: string, name: string, description: string) => {
+      const localId = `g_sub_${Date.now()}`;
       const newGroup: LocalGroup = {
-        id: newSubgroupId,
+        id: localId,
         name,
         description,
         creatorId: currentUserId,
@@ -689,6 +890,7 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
         onlyAdminsCanPost: false,
         parentGroupId: parentId,
         depth: 0, // will be overridden below
+        isDemo: false,
       };
       setGroups((prev) => {
         const parent = prev.find((g) => g.id === parentId);
@@ -697,8 +899,25 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
         return [...prev, groupWithDepth];
       });
       setExpandedGroups((prev) => new Set([...prev, parentId]));
+      // Also create on backend
+      if (actor) {
+        try {
+          const backendId = await asExtended(actor).createSubgroup(
+            parentId,
+            name,
+            description,
+          );
+          if (backendId && backendId !== localId) {
+            setGroups((prev) =>
+              prev.map((g) => (g.id === localId ? { ...g, id: backendId } : g)),
+            );
+          }
+        } catch {
+          // Backend unavailable — keep local subgroup
+        }
+      }
     },
-    [currentUserId],
+    [currentUserId, actor],
   );
 
   const handleDeleteSubgroup = useCallback((subgroupId: string) => {

@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { Ed25519KeyIdentity } from "@dfinity/identity";
 import {
   ArrowLeft,
   Bot,
@@ -69,24 +70,31 @@ export default function LoginPage({ onBack }: LoginPageProps) {
     e.preventDefault();
     try {
       let profile: UserProfile;
+      let identity: Ed25519KeyIdentity;
+
       if (mode === "login") {
-        profile = await loginMutation.mutateAsync({
+        const result = await loginMutation.mutateAsync({
           username: form.username,
           password: form.password,
         });
+        profile = result.profile;
+        identity = result.identity;
       } else {
-        profile = await registerMutation.mutateAsync({
+        const result = await registerMutation.mutateAsync({
           username: form.username,
           password: form.password,
           displayName: form.displayName,
           businessName: form.businessName,
         });
+        profile = result.profile;
+        identity = result.identity;
       }
+
       localStorage.setItem(
         "saarathi_last_username",
         form.username.toLowerCase(),
       );
-      login(profile);
+      login(profile, identity);
       toast.success(
         mode === "login" ? "Welcome back!" : "Account created successfully!",
       );
@@ -103,7 +111,7 @@ export default function LoginPage({ onBack }: LoginPageProps) {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left panel — rich saffron gradient */}
+      {/* Left panel */}
       <div
         className="hidden lg:flex flex-col justify-between w-1/2 px-12 py-10"
         style={{
@@ -117,7 +125,6 @@ export default function LoginPage({ onBack }: LoginPageProps) {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="flex-1 flex flex-col justify-center"
         >
-          {/* Logo */}
           <div className="flex items-center gap-3 mb-10">
             <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center border border-white/20">
               <Compass className="w-7 h-7 text-white" />
@@ -143,7 +150,6 @@ export default function LoginPage({ onBack }: LoginPageProps) {
             get AI-powered guidance.
           </p>
 
-          {/* Feature Grid */}
           <div className="grid grid-cols-2 gap-3">
             {FEATURES.map((item) => {
               const Icon = item.icon;
@@ -165,7 +171,6 @@ export default function LoginPage({ onBack }: LoginPageProps) {
           </div>
         </motion.div>
 
-        {/* Left panel footer */}
         <div className="text-xs text-white/40 mt-8">
           Created by{" "}
           <span className="text-white/70 font-semibold">Tattva Innovation</span>
@@ -181,7 +186,6 @@ export default function LoginPage({ onBack }: LoginPageProps) {
           transition={{ duration: 0.4 }}
           className="w-full max-w-md"
         >
-          {/* Back button */}
           {onBack && (
             <button
               type="button"
@@ -194,7 +198,6 @@ export default function LoginPage({ onBack }: LoginPageProps) {
             </button>
           )}
 
-          {/* Mobile logo */}
           <div className="flex lg:hidden items-center gap-2 mb-8 justify-center">
             <div className="w-9 h-9 rounded-xl bg-amber-600 flex items-center justify-center">
               <Compass className="w-5 h-5 text-white" />

@@ -1,63 +1,8 @@
+import type { Ed25519KeyIdentity } from "@dfinity/identity";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type UserProfile, UserRole } from "../backend";
 import { createActorWithConfig } from "../config";
-
-// ---------------------------------------------------------------------------
-// Local-storage based auth helpers (no canister dependency)
-// ---------------------------------------------------------------------------
-
-const USERS_KEY = "saarathi_users";
-
-function getUsers(): Record<
-  string,
-  { password: string; profile: UserProfile }
-> {
-  try {
-    const raw = localStorage.getItem(USERS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveUsers(
-  users: Record<string, { password: string; profile: UserProfile }>,
-) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-}
-
-function localLogin(username: string, password: string): UserProfile {
-  const users = getUsers();
-  const entry = users[username.toLowerCase()];
-  if (!entry)
-    throw new Error(
-      "Username not found. If you used a different device or browser, you need to register again — accounts are stored locally.",
-    );
-  if (entry.password !== password) throw new Error("Incorrect password.");
-  return entry.profile;
-}
-
-function localRegister(
-  username: string,
-  password: string,
-  displayName: string,
-  businessName: string,
-): UserProfile {
-  const users = getUsers();
-  const key = username.toLowerCase();
-  if (users[key])
-    throw new Error("Username already taken. Please choose another.");
-  const profile: UserProfile = {
-    username,
-    displayName,
-    businessName,
-    password: "", // not stored in profile object itself
-    role: UserRole.user,
-  };
-  users[key] = { password, profile };
-  saveUsers(users);
-  return profile;
-}
+import { deriveIdentityFromCredentials } from "../utils/identityUtils";
 
 // ---------------------------------------------------------------------------
 // Mutations
@@ -69,8 +14,23 @@ export function useLoginMutation() {
     mutationFn: async ({
       username,
       password,
-    }: { username: string; password: string }) => {
-      return localLogin(username, password);
+    }: { username: string; password: string }): Promise<{
+      profile: UserProfile;
+      identity: Ed25519KeyIdentity;
+    }> => {
+      // 1. Derive deterministic identity from credentials
+      const identity = await deriveIdentityFromCredentials(username, password);
+
+      // 2. Create actor with that identity
+      const actor = await createActorWithConfig({ agentOptions: { identity } });
+
+      // 3. Validate credentials on the canister (throws on failure)
+      await actor.login(username, password);
+
+      // 4. Retrieve full profile from canister
+      const profile = await actor.getCallerUserProfile();
+
+      return { profile, identity };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
@@ -86,27 +46,28 @@ export function useRegisterMutation() {
       password: string;
       displayName: string;
       businessName: string;
-    }) => {
-      const profile = localRegister(
+    }): Promise<{ profile: UserProfile; identity: Ed25519KeyIdentity }> => {
+      // 1. Derive deterministic identity
+      const identity = await deriveIdentityFromCredentials(
         data.username,
         data.password,
+      );
+
+      // 2. Create actor with that identity
+      const actor = await createActorWithConfig({ agentOptions: { identity } });
+
+      // 3. Register on canister (throws if username taken)
+      await actor.registerUser(
+        data.username,
         data.displayName,
         data.businessName,
+        data.password,
       );
-      // Fire-and-forget: also register in backend canister for cross-device lookup
-      createActorWithConfig()
-        .then((actor) =>
-          actor.registerUser(
-            data.username,
-            data.displayName,
-            data.businessName,
-            data.password,
-          ),
-        )
-        .catch(() => {
-          // Canister unavailable — localStorage registration still succeeded
-        });
-      return profile;
+
+      // 4. Read back the saved profile
+      const profile = await actor.getCallerUserProfile();
+
+      return { profile, identity };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
@@ -118,12 +79,6 @@ export function useUpdateProfileMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (profile: UserProfile) => {
-      const users = getUsers();
-      const key = profile.username.toLowerCase();
-      if (users[key]) {
-        users[key].profile = profile;
-        saveUsers(users);
-      }
       localStorage.setItem("saarathi_profile", JSON.stringify(profile));
     },
     onSuccess: () => {

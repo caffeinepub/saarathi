@@ -1,3 +1,5 @@
+import type { Ed25519KeyIdentity } from "@dfinity/identity";
+import type { Identity } from "@icp-sdk/core/agent";
 import {
   type ReactNode,
   createContext,
@@ -6,11 +8,17 @@ import {
   useState,
 } from "react";
 import type { UserProfile } from "../backend";
+import {
+  clearIdentity,
+  loadIdentity,
+  saveIdentity,
+} from "../utils/identityUtils";
 
 interface AuthState {
   isLoggedIn: boolean;
   profile: UserProfile | null;
-  login: (profile: UserProfile) => void;
+  identity: Identity | null;
+  login: (profile: UserProfile, identity: Ed25519KeyIdentity) => void;
   logout: () => void;
   updateProfile: (profile: UserProfile) => void;
 }
@@ -27,14 +35,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   });
 
-  const login = useCallback((p: UserProfile) => {
+  const [identity, setIdentity] = useState<Identity | null>(() => {
+    return loadIdentity();
+  });
+
+  const login = useCallback((p: UserProfile, id: Ed25519KeyIdentity) => {
     setProfile(p);
+    setIdentity(id);
     localStorage.setItem("saarathi_profile", JSON.stringify(p));
+    saveIdentity(id);
   }, []);
 
   const logout = useCallback(() => {
     setProfile(null);
+    setIdentity(null);
     localStorage.removeItem("saarathi_profile");
+    clearIdentity();
   }, []);
 
   const updateProfile = useCallback((p: UserProfile) => {
@@ -44,7 +60,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isLoggedIn: !!profile, profile, login, logout, updateProfile }}
+      value={{
+        isLoggedIn: !!profile,
+        profile,
+        identity,
+        login,
+        logout,
+        updateProfile,
+      }}
     >
       {children}
     </AuthContext.Provider>

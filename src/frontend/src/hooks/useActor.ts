@@ -2,52 +2,56 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import type { backendInterface } from "../backend";
 import { createActorWithConfig } from "../config";
+import { useAuth } from "../context/AuthContext";
 import { getSecretParameter } from "../utils/urlParams";
 import { useInternetIdentity } from "./useInternetIdentity";
 
 const ACTOR_QUERY_KEY = "actor";
-export function useActor() {
-  const { identity } = useInternetIdentity();
-  const queryClient = useQueryClient();
-  const actorQuery = useQuery<backendInterface>({
-    queryKey: [ACTOR_QUERY_KEY, identity?.getPrincipal().toString()],
-    queryFn: async () => {
-      const isAuthenticated = !!identity;
 
-      if (!isAuthenticated) {
-        // Return anonymous actor if not authenticated
+export function useActor() {
+  const { identity: iiIdentity } = useInternetIdentity();
+  const { identity: credentialIdentity } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Prefer credential-derived identity over II, then anonymous
+  const activeIdentity = iiIdentity ?? credentialIdentity ?? null;
+
+  const actorQuery = useQuery<backendInterface>({
+    queryKey: [
+      ACTOR_QUERY_KEY,
+      activeIdentity ? activeIdentity.getPrincipal().toString() : "anon",
+    ],
+    queryFn: async () => {
+      if (!activeIdentity) {
+        // Anonymous actor
         return await createActorWithConfig();
       }
 
       const actorOptions = {
-        agentOptions: {
-          identity,
-        },
+        agentOptions: { identity: activeIdentity },
       };
 
       const actor = await createActorWithConfig(actorOptions);
+
+      // Initialize access control if admin token present
       const adminToken = getSecretParameter("caffeineAdminToken") || "";
-      await actor._initializeAccessControlWithSecret(adminToken);
+      if (adminToken) {
+        await actor._initializeAccessControlWithSecret(adminToken);
+      }
+
       return actor;
     },
-    // Only refetch when identity changes
     staleTime: Number.POSITIVE_INFINITY,
-    // This will cause the actor to be recreated when the identity changes
     enabled: true,
   });
 
-  // When the actor changes, invalidate dependent queries
   useEffect(() => {
     if (actorQuery.data) {
       queryClient.invalidateQueries({
-        predicate: (query) => {
-          return !query.queryKey.includes(ACTOR_QUERY_KEY);
-        },
+        predicate: (query) => !query.queryKey.includes(ACTOR_QUERY_KEY),
       });
       queryClient.refetchQueries({
-        predicate: (query) => {
-          return !query.queryKey.includes(ACTOR_QUERY_KEY);
-        },
+        predicate: (query) => !query.queryKey.includes(ACTOR_QUERY_KEY),
       });
     }
   }, [actorQuery.data, queryClient]);

@@ -21,7 +21,8 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { createActorWithConfig } from "../config";
+import { useActor } from "../hooks/useActor";
+import { asExtended } from "../utils/backendExtensions";
 
 interface Contact {
   id: string;
@@ -102,6 +103,7 @@ function loadContacts(): Contact[] {
 }
 
 export default function SettingsPage() {
+  const { actor } = useActor();
   const [profile, setProfile] = useState(loadProfile);
   const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>(loadNotifPrefs);
   const [language, setLanguage] = useState<"en" | "hi">(() => {
@@ -273,20 +275,23 @@ export default function SettingsPage() {
 
       // Step 2: query backend canister for cross-device lookup
       try {
-        const actor = await createActorWithConfig();
-        const allUsers = await actor.getAllUsersByUsername();
-        const match = allUsers.find((u) => u.username.toLowerCase() === query);
-        if (match) {
-          if (match.username.toLowerCase() === currentUsername) {
-            setFindError("That's your own account.");
+        if (actor) {
+          const allUsers = await asExtended(actor).getAllPublicUsers();
+          const match = allUsers.find(
+            (u) => u.username.toLowerCase() === query,
+          );
+          if (match) {
+            if (match.username.toLowerCase() === currentUsername) {
+              setFindError("That's your own account.");
+              return;
+            }
+            setFoundUser({
+              username: match.username,
+              displayName: match.displayName,
+              businessName: "",
+            });
             return;
           }
-          setFoundUser({
-            username: match.username,
-            displayName: match.displayName,
-            businessName: match.businessName,
-          });
-          return;
         }
       } catch {
         // canister unavailable — fall through to not-found
