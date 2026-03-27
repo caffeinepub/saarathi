@@ -11,6 +11,7 @@ import {
   MessageCircle,
   Plus,
   Save,
+  Search,
   Share2,
   Trash2,
   Upload,
@@ -115,6 +116,15 @@ export default function SettingsPage() {
   const [csvText, setCsvText] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Find Users state
+  const [findUsername, setFindUsername] = useState("");
+  const [foundUser, setFoundUser] = useState<{
+    username: string;
+    displayName: string;
+    businessName: string;
+  } | null>(null);
+  const [findError, setFindError] = useState("");
+
   function saveProfile() {
     localStorage.setItem("saarathi_profile", JSON.stringify(profile));
     toast.success("Profile saved successfully");
@@ -200,6 +210,81 @@ export default function SettingsPage() {
       "Hey! I'm using SAARATHI for managing my business. Join me! https://saarathi.app",
     );
     window.open(`https://wa.me/?text=${msg}`, "_blank");
+  }
+
+  function searchUser() {
+    setFoundUser(null);
+    setFindError("");
+    const query = findUsername.trim().toLowerCase();
+    if (!query) return;
+    try {
+      const users = JSON.parse(localStorage.getItem("saarathi_users") || "{}");
+      const currentUsername = JSON.parse(
+        localStorage.getItem("saarathi_profile") || "{}",
+      ).username?.toLowerCase();
+      if (query === currentUsername) {
+        setFindError("That's your own account.");
+        return;
+      }
+      const entry = users[query];
+      if (!entry) {
+        setFindError("No user found with that username.");
+        return;
+      }
+      setFoundUser({
+        username: entry.profile.username,
+        displayName: entry.profile.displayName,
+        businessName: entry.profile.businessName,
+      });
+    } catch {
+      setFindError("Error searching users.");
+    }
+  }
+
+  function addFoundUserAsContact() {
+    if (!foundUser) return;
+    const exists = contacts.some(
+      (c) => c.id === `user_${foundUser.username.toLowerCase()}`,
+    );
+    if (exists) {
+      toast.error("This user is already in your contacts.");
+      return;
+    }
+    const contact: Contact = {
+      id: `user_${foundUser.username.toLowerCase()}`,
+      name: foundUser.displayName || foundUser.username,
+      phone: foundUser.businessName || "",
+      role: "Colleague",
+    };
+    const updated = [...contacts, contact];
+    setContacts(updated);
+    localStorage.setItem("saarathi_contacts", JSON.stringify(updated));
+    try {
+      const dmContacts = JSON.parse(
+        localStorage.getItem("saarathi_dm_contacts") || "[]",
+      );
+      if (
+        !dmContacts.find(
+          (d: { id: string }) =>
+            d.id === `dm_${foundUser.username.toLowerCase()}`,
+        )
+      ) {
+        dmContacts.push({
+          id: `dm_${foundUser.username.toLowerCase()}`,
+          name: foundUser.displayName || foundUser.username,
+          username: foundUser.username,
+        });
+        localStorage.setItem(
+          "saarathi_dm_contacts",
+          JSON.stringify(dmContacts),
+        );
+      }
+    } catch {}
+    toast.success(
+      `${foundUser.displayName || foundUser.username} added to contacts`,
+    );
+    setFoundUser(null);
+    setFindUsername("");
   }
 
   const DEMO_GROUP_IDS = ["g1", "g1-sub1", "g2", "g3"];
@@ -579,6 +664,81 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Find Users Section */}
+        <div className="rounded-2xl bg-[#1e1e1e] border border-white/8 overflow-hidden">
+          <div className="px-5 py-3 bg-sky-500/10 border-b border-sky-500/20 flex items-center gap-2">
+            <Search className="w-4 h-4 text-sky-400" />
+            <h2 className="text-sm font-semibold text-sky-400 uppercase tracking-wider">
+              Find Users by Username
+            </h2>
+          </div>
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-white/60">
+              Search for other SAARATHI users by their username and add them as
+              contacts or start a DM.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                value={findUsername}
+                onChange={(e) => setFindUsername(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && searchUser()}
+                placeholder="Enter username to search"
+                className="bg-[#2a2a2a] border-white/10 text-white placeholder:text-white/30 flex-1"
+                data-ocid="settings.search_input"
+              />
+              <Button
+                onClick={searchUser}
+                className="bg-amber-500 hover:bg-amber-600 text-black font-semibold px-4"
+                data-ocid="settings.primary_button"
+              >
+                <Search className="w-4 h-4" />
+              </Button>
+            </div>
+            {findError && (
+              <p
+                className="text-sm text-red-400"
+                data-ocid="settings.error_state"
+              >
+                {findError}
+              </p>
+            )}
+            {foundUser && (
+              <div
+                className="rounded-xl bg-[#2a2a2a] border border-sky-500/20 p-4 flex items-center justify-between gap-3"
+                data-ocid="settings.card"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-sky-500/20 flex items-center justify-center text-sky-400 text-base font-bold">
+                    {(foundUser.displayName ||
+                      foundUser.username)[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-white">
+                      {foundUser.displayName || foundUser.username}
+                    </div>
+                    {foundUser.businessName && (
+                      <div className="text-xs text-white/50">
+                        {foundUser.businessName}
+                      </div>
+                    )}
+                    <div className="text-xs text-sky-400/70 font-mono">
+                      @{foundUser.username}
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  onClick={addFoundUserAsContact}
+                  className="bg-amber-500 hover:bg-amber-600 text-black font-semibold text-xs px-3 py-1.5 h-auto"
+                  data-ocid="settings.primary_button"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Add to Contacts
+                </Button>
               </div>
             )}
           </div>

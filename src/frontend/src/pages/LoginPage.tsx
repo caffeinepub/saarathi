@@ -42,8 +42,14 @@ const FEATURES = [
 export default function LoginPage({ onBack }: LoginPageProps) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [showPassword, setShowPassword] = useState(false);
+
+  const lastUsername =
+    typeof window !== "undefined"
+      ? localStorage.getItem("saarathi_last_username") || ""
+      : "";
+
   const [form, setForm] = useState({
-    username: "",
+    username: lastUsername,
     password: "",
     displayName: "",
     businessName: "",
@@ -76,6 +82,10 @@ export default function LoginPage({ onBack }: LoginPageProps) {
           businessName: form.businessName,
         });
       }
+      localStorage.setItem(
+        "saarathi_last_username",
+        form.username.toLowerCase(),
+      );
       login(profile);
       toast.success(
         mode === "login" ? "Welcome back!" : "Account created successfully!",
@@ -257,6 +267,11 @@ export default function LoginPage({ onBack }: LoginPageProps) {
                     className="bg-white/5 border-white/10 text-white placeholder:text-white/25 h-11"
                     data-ocid="auth.input"
                   />
+                  {mode === "login" && form.username && (
+                    <p className="text-xs text-amber-400/60">
+                      Last session remembered — just enter your password
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -272,6 +287,7 @@ export default function LoginPage({ onBack }: LoginPageProps) {
                       value={form.password}
                       onChange={handleChange}
                       required
+                      autoFocus={!!form.username}
                       autoComplete={
                         mode === "login" ? "current-password" : "new-password"
                       }
