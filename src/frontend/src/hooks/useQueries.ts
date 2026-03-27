@@ -29,7 +29,10 @@ function saveUsers(
 function localLogin(username: string, password: string): UserProfile {
   const users = getUsers();
   const entry = users[username.toLowerCase()];
-  if (!entry) throw new Error("Username not found. Please create an account.");
+  if (!entry)
+    throw new Error(
+      "Username not found. If you used a different device or browser, you need to register again — accounts are stored locally.",
+    );
   if (entry.password !== password) throw new Error("Incorrect password.");
   return entry.profile;
 }

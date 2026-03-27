@@ -381,14 +381,32 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
     }
   });
 
-  const [groups, setGroups] = useState<LocalGroup[]>(() =>
-    makeSampleGroups(currentUserId),
-  );
-  const [dmContacts, setDmContacts] = useState<LocalUser[]>(() => [
-    SAMPLE_USERS[0],
-    SAMPLE_USERS[1],
-    SAMPLE_USERS[5], // Ravi Kumar
-  ]);
+  const [groups, setGroups] = useState<LocalGroup[]>(() => {
+    const demoCleared =
+      localStorage.getItem("saarathi_demo_cleared") === "true";
+    try {
+      const stored = localStorage.getItem("saarathi_groups");
+      if (stored) {
+        const parsed = JSON.parse(stored) as LocalGroup[];
+        if (parsed.length > 0) return parsed;
+      }
+    } catch {}
+    if (demoCleared) return [];
+    return makeSampleGroups(currentUserId);
+  });
+  const [dmContacts, setDmContacts] = useState<LocalUser[]>(() => {
+    const demoCleared =
+      localStorage.getItem("saarathi_demo_cleared") === "true";
+    try {
+      const stored = localStorage.getItem("saarathi_dm_contacts");
+      if (stored) {
+        const parsed = JSON.parse(stored) as LocalUser[];
+        if (parsed.length > 0) return parsed;
+      }
+    } catch {}
+    if (demoCleared) return [];
+    return [SAMPLE_USERS[0], SAMPLE_USERS[1], SAMPLE_USERS[5]];
+  });
   const [messages, setMessages] = useState<Record<string, LocalMessage[]>>(
     () => {
       try {
@@ -397,6 +415,7 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
           return JSON.parse(stored) as Record<string, LocalMessage[]>;
         }
       } catch {}
+      if (localStorage.getItem("saarathi_demo_cleared") === "true") return {};
       return makeSampleMessages(currentUserId, currentDisplayName);
     },
   );

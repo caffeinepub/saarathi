@@ -490,6 +490,12 @@ export default function SettingsPage() {
       localStorage.setItem("saarathi_dm_contacts", JSON.stringify([]));
     } catch {}
 
+    // Set flag so MessengerPage won't re-inject sample data on next mount
+    localStorage.setItem("saarathi_demo_cleared", "true");
+    // Also clear the saarathi_groups key so it doesn't restore demo groups
+    localStorage.setItem("saarathi_groups", JSON.stringify([]));
+    localStorage.setItem("saarathi_dm_contacts", JSON.stringify([]));
+    localStorage.setItem("saarathi_messages", JSON.stringify({}));
     setDemoActive(false);
     toast.success("Demo data removed — now using real workspace");
   }
