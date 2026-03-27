@@ -265,23 +265,23 @@ function TodaySummaryStrip({
 // ─── Onboarding Modal ──────────────────────────────────────────────────────────
 const ONBOARDING_STEPS = [
   {
-    title: "Send messages like WhatsApp",
-    body: "Chat with your team, groups, and contacts just like you do on WhatsApp.",
+    title: "Welcome to SAARATHI!",
+    body: "You’re now exploring with demo data from Tattva Traders — a small consulting firm just like yours. See how chat drives the entire workflow.",
     icon: "💬",
   },
   {
-    title: "AI turns messages into tasks",
-    body: "Type naturally — SAARATHI AI detects when you mention a task or meeting and creates it for you.",
+    title: "Chat Creates Actions",
+    body: "In the Tattva Traders Team group, Suresh just flagged the GST filing deadline. One tap creates a task — no separate to-do app needed.",
     icon: "✨",
   },
   {
-    title: "Track payments and invoices",
-    body: "Generate GST-compliant invoices directly from chat conversations with one tap.",
+    title: "Track Payments Easily",
+    body: "INV-001 for Verma Industries (₹35,000) is due in 10 days. SAARATHI tracks it and sends reminders directly from chat.",
     icon: "💰",
   },
   {
-    title: "Use AI buttons inside chat",
-    body: "Every chat has smart AI action buttons — Reply, Create Task, Create Invoice — always ready.",
+    title: "AI Works Inside Chat",
+    body: "Use the ✨ AI button inside any chat to create tasks, draft invoices, or send reminders — all without leaving the conversation.",
     icon: "🤖",
   },
 ];
@@ -410,7 +410,7 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
       }
     } catch {}
     if (demoCleared) return [];
-    return [SAMPLE_USERS[0], SAMPLE_USERS[1], SAMPLE_USERS[5]];
+    return [SAMPLE_USERS[0], SAMPLE_USERS[1], SAMPLE_USERS[2]];
   });
   const [messages, setMessages] = useState<Record<string, LocalMessage[]>>(
     () => {

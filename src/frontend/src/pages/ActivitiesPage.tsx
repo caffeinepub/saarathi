@@ -112,84 +112,85 @@ function computePriority(
 const _INITIAL_ACTIVITIES: Activity[] = [
   {
     id: "a1",
-    title: "GST Filing — Q3 Review",
-    taskType: "meeting",
-    assignees: ["Priya Sharma", "Rahul Gupta"],
-    groupId: "Accounts",
-    dateTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
+    title: "GST Return Filing — Q4",
+    taskType: "groupTask",
+    assignees: ["Suresh Mehta"],
+    groupId: "Accounts & GST",
+    dateTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 16),
     deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 10),
-    location: "Conference Room B, Head Office",
+    location: "Online — GST Portal",
     notes:
-      "Compile all purchase invoices and sales register. Review input tax credit discrepancies before filing.",
+      "File GSTR-1 for Q4. Ensure all B2B invoices are uploaded and input tax credit is reconciled before filing.",
     status: "pending",
     createdBy: "Admin",
     createdAt: Date.now() - 1 * 24 * 60 * 60 * 1000,
-    messengerSent: false,
+    messengerSent: true,
     isDemo: true,
   },
   {
     id: "a2",
-    title: "Monthly Sales Performance Review",
-    taskType: "groupTask",
-    assignees: ["Amit Verma", "Sunita Patel", "Deepak Nair"],
-    groupId: "Sales Team",
+    title: "Follow-up Call — Verma Industries",
+    taskType: "meeting",
+    assignees: ["Kavya Nair"],
+    groupId: "Client Projects",
     dateTime: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 16),
     deadline: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 10),
-    location: "Zoom — Meeting ID: 8823 4412",
+    location: "Phone / Google Meet",
     notes:
-      "Each member to present their pipeline and closed deals. Discuss targets for next month.",
-    status: "inProgress",
+      "Discuss revised pricing and project timeline for the import consulting engagement. Key contact: Mr. Rajan Verma, MD. Ask about advance payment.",
+    status: "pending",
     createdBy: "Admin",
-    createdAt: Date.now() - 2 * 24 * 60 * 60 * 1000,
+    createdAt: Date.now() - 2 * 60 * 60 * 1000,
     messengerSent: true,
     isDemo: true,
   },
   {
     id: "a3",
-    title: "Client Site Visit — Mehta Exports",
-    taskType: "meeting",
-    assignees: ["Rajesh Mehta"],
-    dateTime: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)
+    title: "Send Revised Proposal — Kapoor Exports",
+    taskType: "groupTask",
+    assignees: ["Kavya Nair", "Suresh Mehta"],
+    groupId: "Client Projects",
+    dateTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 16),
-    deadline: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)
+    deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 10),
-    location: "Mehta Exports, MIDC Andheri East, Mumbai",
+    location: "Email / SAARATHI Messenger",
     notes:
-      "Demonstrate new inventory module. Collect signed proposal copy and discuss implementation timeline.",
-    status: "completed",
+      "Send revised estimate (EST-001) to Kapoor Exports after Suresh confirms GST applicability. Target: ₹96,000 with 18% GST.",
+    status: "inProgress",
     createdBy: "Admin",
-    createdAt: Date.now() - 4 * 24 * 60 * 60 * 1000,
+    createdAt: Date.now() - 3 * 60 * 60 * 1000,
     messengerSent: false,
     isDemo: true,
   },
   {
     id: "a4",
-    title: "Vendor Payment Reconciliation",
+    title: "Collect Advance Payment — Verma Industries",
     taskType: "groupTask",
-    assignees: ["Priya Sharma"],
-    groupId: "Accounts",
+    assignees: ["Kavya Nair"],
+    groupId: "Client Projects",
     dateTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 16),
     deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 10),
-    location: "Accounts Office, 2nd Floor",
+    location: "Bank Transfer / UPI",
     notes:
-      "Cross-check all vendor invoices against bank statements. Flag any discrepancies above ₹5,000.",
+      "Collect 30% advance (approx ₹10,500) before project kickoff. Client has agreed to upfront payment. Follow up if not received by deadline.",
     status: "pending",
     createdBy: "Admin",
-    createdAt: Date.now() - 3 * 60 * 60 * 1000,
+    createdAt: Date.now() - 30 * 60 * 1000,
     messengerSent: false,
     isDemo: true,
   },

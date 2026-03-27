@@ -59,7 +59,12 @@ function loadNotifPrefs(): NotifPrefs {
   };
 }
 
-const DEMO_CONTACT_IDS = ["c_priya_s", "c_ravi_k", "c_rajesh_m", "c_amit_p"];
+const DEMO_CONTACT_IDS = [
+  "c_kavya_n",
+  "c_suresh_m",
+  "c_arjun_s",
+  "c_deepika_j",
+];
 
 function loadContacts(): Contact[] {
   try {
@@ -76,28 +81,28 @@ function loadContacts(): Contact[] {
   } catch {}
   return [
     {
-      id: "c_priya_s",
-      name: "Priya Sharma",
-      phone: "+91 98765 43210",
+      id: "c_kavya_n",
+      name: "Kavya Nair",
+      phone: "+91 98230 00111",
       role: "Colleague",
     },
     {
-      id: "c_ravi_k",
-      name: "Ravi Kumar",
-      phone: "+91 87654 32109",
+      id: "c_suresh_m",
+      name: "Suresh Mehta",
+      phone: "+91 98340 00222",
       role: "Colleague",
     },
     {
-      id: "c_rajesh_m",
-      name: "Rajesh Mehta",
-      phone: "+91 76543 21098",
-      role: "Client",
+      id: "c_arjun_s",
+      name: "Arjun Singh",
+      phone: "+91 98450 00333",
+      role: "Colleague",
     },
     {
-      id: "c_amit_p",
-      name: "Amit Patel",
-      phone: "+91 65432 10987",
-      role: "Client",
+      id: "c_deepika_j",
+      name: "Deepika Joshi",
+      phone: "+91 98560 00444",
+      role: "Colleague",
     },
   ];
 }
@@ -351,18 +356,14 @@ export default function SettingsPage() {
     setFindUsername("");
   }
 
-  const DEMO_GROUP_IDS = ["g1", "g1-sub1", "g2", "g3"];
+  const DEMO_GROUP_IDS = ["g1", "g1-sub1", "g2"];
   const DEMO_CHAT_KEYS = [
     "group_g1",
     "group_g1-sub1",
     "group_g2",
-    "group_g3",
-    "dm_priya",
-    "dm_rajesh",
-    "dm_ravi",
-    "dm_meena",
-    "dm_ankit",
-    "dm_sunita",
+    "dm_kavya",
+    "dm_suresh",
+    "dm_arjun",
   ];
 
   function hasDemoData(): boolean {
