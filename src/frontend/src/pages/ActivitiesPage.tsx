@@ -44,7 +44,16 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import MapPickerModal from "../components/MapPickerModal";
 import { useAuth } from "../context/AuthContext";
+import { useActor } from "../hooks/useActor";
 import { dataStore } from "../store/dataStore";
+import {
+  type CanisterActivity,
+  activityStatusToCanister,
+  asExtended,
+  canisterStatusToActivity,
+  canisterTaskTypeToLocal,
+  taskTypeToCanister,
+} from "../utils/backendExtensions";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type TaskType = "meeting" | "groupTask" | "other";
@@ -100,7 +109,7 @@ function computePriority(
   return null;
 }
 
-const INITIAL_ACTIVITIES: Activity[] = [
+const _INITIAL_ACTIVITIES: Activity[] = [
   {
     id: "a1",
     title: "GST Filing — Q3 Review",
@@ -1556,16 +1565,9 @@ export default function ActivitiesPage() {
   const { profile } = useAuth();
   const currentUserId = profile?.username || "me";
   const currentDisplayName = profile?.displayName || profile?.username || "You";
-  const [activities, setActivities] = useState<Activity[]>(() => {
-    try {
-      const stored = localStorage.getItem("saarathi_activities");
-      if (stored) {
-        const parsed: Activity[] = JSON.parse(stored);
-        return parsed;
-      }
-    } catch {}
-    return INITIAL_ACTIVITIES;
-  });
+  const { actor } = useActor();
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loadingActivities, setLoadingActivities] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [filter, setFilter] = useState<"all" | ActivityStatus>("all");
   const [messengerTarget, setMessengerTarget] = useState<Activity | null>(null);
@@ -1587,10 +1589,43 @@ export default function ActivitiesPage() {
       );
   }, []);
 
-  // Persist activities to dataStore whenever they change
+  // Load activities from canister + poll every 5s
   useEffect(() => {
-    dataStore.setActivities(activities);
-  }, [activities]);
+    if (!actor) return;
+    const ext = asExtended(actor);
+
+    async function fetchActivities() {
+      try {
+        const raw = await ext.listMyActivities();
+        const mapped: Activity[] = raw.map((a: CanisterActivity) => ({
+          id: a.id,
+          title: a.title,
+          taskType: canisterTaskTypeToLocal(a.taskType) as Activity["taskType"],
+          assignees: a.assignees,
+          groupId: a.groupId || undefined,
+          dateTime: a.dateTime,
+          deadline: a.deadline,
+          location: a.location,
+          notes: a.notes,
+          status: canisterStatusToActivity(a.status) as Activity["status"],
+          createdBy: a.createdBy.toString(),
+          createdAt: Number(a.createdAt) / 1_000_000,
+          messengerSent: a.messengerSent,
+          chatThreadId: a.chatThreadId || undefined,
+        }));
+        setActivities(mapped);
+      } catch (err) {
+        console.error("Failed to load activities:", err);
+        toast.error("Failed to load activities");
+      } finally {
+        setLoadingActivities(false);
+      }
+    }
+
+    fetchActivities();
+    const interval = setInterval(fetchActivities, 5000);
+    return () => clearInterval(interval);
+  }, [actor]);
 
   // Pre-fill from chat context
   useEffect(() => {
@@ -1625,49 +1660,46 @@ export default function ActivitiesPage() {
     return base.filter((a) => a.status === filter);
   }, [activities, filter]);
 
-  function handleCreate(a: Activity) {
-    setActivities((prev) => [a, ...prev]);
-    toast.success("Action created");
-    // Post confirmation message to linked chat
+  async function handleCreate(a: Activity) {
+    if (!actor) {
+      toast.error("Not connected");
+      return;
+    }
     try {
-      const chatTarget = a.chatThreadId || "group_g1";
-      const msgs = JSON.parse(
-        localStorage.getItem("saarathi_messages") || "{}",
+      await asExtended(actor).createActivity(
+        a.title,
+        taskTypeToCanister(a.taskType),
+        a.assignees,
+        a.groupId || "",
+        a.dateTime,
+        a.deadline,
+        a.location,
+        a.notes,
+        a.chatThreadId || "",
       );
-      const now = Date.now();
-      msgs[chatTarget] = [
-        ...(msgs[chatTarget] || []),
-        {
-          id: `act_${now}`,
-          senderId: currentUserId,
-          senderName: currentDisplayName,
-          content: `📌 Task created: ${a.title}`,
-          msgType: "text",
-          timestamp: now,
-        },
-      ];
-      localStorage.setItem("saarathi_messages", JSON.stringify(msgs));
-    } catch {}
-  }
-
-  function handleStatusChange(id: string) {
-    setActivities((prev) =>
-      prev.map((a) =>
-        a.id === id ? { ...a, status: nextStatus(a.status) } : a,
-      ),
-    );
-  }
-
-  function handleMarkDone(id: string) {
-    const activity = activities.find((a) => a.id === id);
-    setActivities((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: "completed" } : a)),
-    );
-    toast.success("Task marked as completed!");
-    // Post chat message
-    if (activity) {
+      // Refresh list
+      const raw = await asExtended(actor).listMyActivities();
+      const mapped: Activity[] = raw.map((c: CanisterActivity) => ({
+        id: c.id,
+        title: c.title,
+        taskType: canisterTaskTypeToLocal(c.taskType) as Activity["taskType"],
+        assignees: c.assignees,
+        groupId: c.groupId || undefined,
+        dateTime: c.dateTime,
+        deadline: c.deadline,
+        location: c.location,
+        notes: c.notes,
+        status: canisterStatusToActivity(c.status) as Activity["status"],
+        createdBy: c.createdBy.toString(),
+        createdAt: Number(c.createdAt) / 1_000_000,
+        messengerSent: c.messengerSent,
+        chatThreadId: c.chatThreadId || undefined,
+      }));
+      setActivities(mapped);
+      toast.success("Action created");
+      // Post confirmation message to linked chat
       try {
-        const chatTarget = activity.chatThreadId || "group_g1";
+        const chatTarget = a.chatThreadId || "group_g1";
         const msgs = JSON.parse(
           localStorage.getItem("saarathi_messages") || "{}",
         );
@@ -1675,24 +1707,101 @@ export default function ActivitiesPage() {
         msgs[chatTarget] = [
           ...(msgs[chatTarget] || []),
           {
-            id: `done_${now}`,
-            senderId: "me",
-            senderName: "You",
-            content: `✅ Task completed: ${activity.title}`,
+            id: `act_${now}`,
+            senderId: currentUserId,
+            senderName: currentDisplayName,
+            content: `📌 Task created: ${a.title}`,
             msgType: "text",
             timestamp: now,
           },
         ];
         localStorage.setItem("saarathi_messages", JSON.stringify(msgs));
-        window.dispatchEvent(new CustomEvent("saarathi_messages_updated"));
       } catch {}
+    } catch (err) {
+      console.error("Failed to create activity:", err);
+      toast.error("Failed to create activity");
     }
   }
 
-  function handleMessengerSent(id: string) {
-    setActivities((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, messengerSent: true } : a)),
-    );
+  async function handleStatusChange(id: string) {
+    const activity = activities.find((a) => a.id === id);
+    if (!activity || !actor) return;
+    const newStatus = nextStatus(activity.status);
+    try {
+      await asExtended(actor).updateActivityStatus(
+        id,
+        activityStatusToCanister(newStatus),
+      );
+      setActivities((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a)),
+      );
+    } catch (err) {
+      console.error("Failed to update activity status:", err);
+      toast.error("Failed to update status");
+    }
+  }
+
+  async function handleMarkDone(id: string) {
+    const activity = activities.find((a) => a.id === id);
+    if (!actor) return;
+    try {
+      await asExtended(actor).updateActivityStatus(id, { completed: null });
+      setActivities((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: "completed" } : a)),
+      );
+      toast.success("Task marked as completed!");
+      if (activity) {
+        try {
+          const chatTarget = activity.chatThreadId || "group_g1";
+          const msgs = JSON.parse(
+            localStorage.getItem("saarathi_messages") || "{}",
+          );
+          const now = Date.now();
+          msgs[chatTarget] = [
+            ...(msgs[chatTarget] || []),
+            {
+              id: `done_${now}`,
+              senderId: "me",
+              senderName: "You",
+              content: `✅ Task completed: ${activity.title}`,
+              msgType: "text",
+              timestamp: now,
+            },
+          ];
+          localStorage.setItem("saarathi_messages", JSON.stringify(msgs));
+          window.dispatchEvent(new CustomEvent("saarathi_messages_updated"));
+        } catch {}
+      }
+    } catch (err) {
+      console.error("Failed to mark done:", err);
+      toast.error("Failed to complete task");
+    }
+  }
+
+  async function handleMessengerSent(id: string) {
+    const activity = activities.find((a) => a.id === id);
+    if (!actor || !activity) return;
+    try {
+      await asExtended(actor).updateActivity(
+        id,
+        activity.title,
+        taskTypeToCanister(activity.taskType),
+        activity.assignees,
+        activity.groupId || "",
+        activity.dateTime,
+        activity.deadline,
+        activity.location,
+        activity.notes,
+      );
+      setActivities((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, messengerSent: true } : a)),
+      );
+    } catch {
+      // Non-critical: update local state anyway
+      setActivities((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, messengerSent: true } : a)),
+      );
+    }
   }
 
   function handleNudge(activity: Activity, message?: string) {
@@ -1738,6 +1847,16 @@ export default function ActivitiesPage() {
     { key: "inProgress", label: "In Progress", count: counts.inProgress },
     { key: "completed", label: "Completed", count: counts.completed },
   ];
+
+  if (loadingActivities) {
+    return (
+      <div className="min-h-full bg-background flex items-center justify-center">
+        <div className="text-amber-600 text-sm animate-pulse">
+          Loading activities…
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-full bg-background">

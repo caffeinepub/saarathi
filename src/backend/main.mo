@@ -388,4 +388,345 @@ actor {
     };
     result;
   };
+
+  // ========================
+  // PHASE 3 - CLIENTS
+  // ========================
+  public type Client = {
+    id : Text;
+    name : Text;
+    gstin : Text;
+    email : Text;
+    phone : Text;
+    address : Text;
+    city : Text;
+    state : Text;
+    placeOfSupply : Text;
+    owner : Principal;
+  };
+
+  var clientCounter : Nat = 0;
+  let clients = Map.empty<Text, Client>();
+
+  func nextClientId() : Text {
+    clientCounter += 1;
+    "cli" # clientCounter.toText();
+  };
+
+  public shared ({ caller }) func createClient(name : Text, gstin : Text, email : Text, phone : Text, address : Text, city : Text, state : Text, placeOfSupply : Text) : async Text {
+    if (not (userProfiles.containsKey(caller))) { Runtime.trap("Must be registered") };
+    let id = nextClientId();
+    let c : Client = { id; name; gstin; email; phone; address; city; state; placeOfSupply; owner = caller };
+    clients.add(id, c);
+    id;
+  };
+
+  public shared ({ caller }) func updateClient(id : Text, name : Text, gstin : Text, email : Text, phone : Text, address : Text, city : Text, state : Text, placeOfSupply : Text) : async () {
+    switch (clients.get(id)) {
+      case (null) { Runtime.trap("Client not found") };
+      case (?c) {
+        if (not Principal.equal(c.owner, caller)) { Runtime.trap("Unauthorized") };
+        let updated : Client = { id; name; gstin; email; phone; address; city; state; placeOfSupply; owner = caller };
+        clients.add(id, updated);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteClient(id : Text) : async () {
+    switch (clients.get(id)) {
+      case (null) { Runtime.trap("Client not found") };
+      case (?c) {
+        if (not Principal.equal(c.owner, caller)) { Runtime.trap("Unauthorized") };
+        ignore (clients.remove(id));
+      };
+    };
+  };
+
+  public query ({ caller }) func listMyClients() : async [Client] {
+    var result : [Client] = [];
+    for (c in clients.values()) {
+      if (Principal.equal(c.owner, caller)) {
+        let n = result.size();
+        result := Array.tabulate<Client>(n + 1, func(i) { if (i < n) result[i] else c });
+      };
+    };
+    result;
+  };
+
+  // ========================
+  // PHASE 3 - PRODUCTS
+  // ========================
+  public type Product = {
+    id : Text;
+    name : Text;
+    hsnSac : Text;
+    description : Text;
+    unit : Text;
+    price : Float;
+    gstRate : Float;
+    owner : Principal;
+  };
+
+  var productCounter : Nat = 0;
+  let products = Map.empty<Text, Product>();
+
+  func nextProductId() : Text {
+    productCounter += 1;
+    "pro" # productCounter.toText();
+  };
+
+  public shared ({ caller }) func createProduct(name : Text, hsnSac : Text, description : Text, unit : Text, price : Float, gstRate : Float) : async Text {
+    if (not (userProfiles.containsKey(caller))) { Runtime.trap("Must be registered") };
+    let id = nextProductId();
+    let p : Product = { id; name; hsnSac; description; unit; price; gstRate; owner = caller };
+    products.add(id, p);
+    id;
+  };
+
+  public shared ({ caller }) func updateProduct(id : Text, name : Text, hsnSac : Text, description : Text, unit : Text, price : Float, gstRate : Float) : async () {
+    switch (products.get(id)) {
+      case (null) { Runtime.trap("Product not found") };
+      case (?p) {
+        if (not Principal.equal(p.owner, caller)) { Runtime.trap("Unauthorized") };
+        let updated : Product = { id; name; hsnSac; description; unit; price; gstRate; owner = caller };
+        products.add(id, updated);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteProduct(id : Text) : async () {
+    switch (products.get(id)) {
+      case (null) { Runtime.trap("Product not found") };
+      case (?p) {
+        if (not Principal.equal(p.owner, caller)) { Runtime.trap("Unauthorized") };
+        ignore (products.remove(id));
+      };
+    };
+  };
+
+  public query ({ caller }) func listMyProducts() : async [Product] {
+    var result : [Product] = [];
+    for (p in products.values()) {
+      if (Principal.equal(p.owner, caller)) {
+        let n = result.size();
+        result := Array.tabulate<Product>(n + 1, func(i) { if (i < n) result[i] else p });
+      };
+    };
+    result;
+  };
+
+  // ========================
+  // PHASE 3 - ACTIVITIES
+  // ========================
+  public type ActivityStatus = { #pending; #inProgress; #completed; #change_requested };
+  public type TaskType = { #meeting; #groupTask; #other };
+
+  public type Activity = {
+    id : Text;
+    title : Text;
+    taskType : TaskType;
+    assignees : [Text];
+    groupId : Text;
+    dateTime : Text;
+    deadline : Text;
+    location : Text;
+    notes : Text;
+    status : ActivityStatus;
+    createdBy : Principal;
+    createdAt : Int;
+    messengerSent : Bool;
+    chatThreadId : Text;
+  };
+
+  var activityCounter : Nat = 0;
+  let activities = Map.empty<Text, Activity>();
+
+  func nextActivityId() : Text {
+    activityCounter += 1;
+    "act" # activityCounter.toText();
+  };
+
+  public shared ({ caller }) func createActivity(title : Text, taskType : TaskType, assignees : [Text], groupId : Text, dateTime : Text, deadline : Text, location : Text, notes : Text, chatThreadId : Text) : async Text {
+    if (not (userProfiles.containsKey(caller))) { Runtime.trap("Must be registered") };
+    let id = nextActivityId();
+    let a : Activity = {
+      id; title; taskType; assignees; groupId; dateTime; deadline; location; notes;
+      status = #pending; createdBy = caller; createdAt = Time.now();
+      messengerSent = chatThreadId != ""; chatThreadId;
+    };
+    activities.add(id, a);
+    id;
+  };
+
+  public shared ({ caller }) func updateActivityStatus(id : Text, status : ActivityStatus) : async () {
+    switch (activities.get(id)) {
+      case (null) { Runtime.trap("Activity not found") };
+      case (?a) {
+        let updated : Activity = {
+          id = a.id; title = a.title; taskType = a.taskType; assignees = a.assignees;
+          groupId = a.groupId; dateTime = a.dateTime; deadline = a.deadline;
+          location = a.location; notes = a.notes; status;
+          createdBy = a.createdBy; createdAt = a.createdAt;
+          messengerSent = a.messengerSent; chatThreadId = a.chatThreadId;
+        };
+        activities.add(id, updated);
+      };
+    };
+  };
+
+  public shared ({ caller }) func updateActivity(id : Text, title : Text, taskType : TaskType, assignees : [Text], groupId : Text, dateTime : Text, deadline : Text, location : Text, notes : Text) : async () {
+    switch (activities.get(id)) {
+      case (null) { Runtime.trap("Activity not found") };
+      case (?a) {
+        if (not Principal.equal(a.createdBy, caller)) { Runtime.trap("Unauthorized") };
+        let updated : Activity = {
+          id; title; taskType; assignees; groupId; dateTime; deadline; location; notes;
+          status = a.status; createdBy = a.createdBy; createdAt = a.createdAt;
+          messengerSent = a.messengerSent; chatThreadId = a.chatThreadId;
+        };
+        activities.add(id, updated);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteActivity(id : Text) : async () {
+    switch (activities.get(id)) {
+      case (null) { Runtime.trap("Activity not found") };
+      case (?a) {
+        if (not Principal.equal(a.createdBy, caller)) { Runtime.trap("Unauthorized") };
+        ignore (activities.remove(id));
+      };
+    };
+  };
+
+  public query ({ caller }) func listMyActivities() : async [Activity] {
+    var result : [Activity] = [];
+    switch (userProfiles.get(caller)) {
+      case (null) {};
+      case (?profile) {
+        for (a in activities.values()) {
+          var isAssigned = false;
+          for (u in a.assignees.vals()) {
+            if (u == profile.username) isAssigned := true;
+          };
+          if (Principal.equal(a.createdBy, caller) or isAssigned) {
+            let n = result.size();
+            result := Array.tabulate<Activity>(n + 1, func(i) { if (i < n) result[i] else a });
+          };
+        };
+      };
+    };
+    result;
+  };
+
+  // ========================
+  // PHASE 3 - BUSINESS DOCS
+  // ========================
+  public type DocType = { #invoice; #estimate; #proposal };
+  public type DocStatus = { #draft; #sent; #paid; #accepted; #rejected };
+
+  public type LineItem = {
+    id : Text;
+    productId : Text;
+    description : Text;
+    hsnSac : Text;
+    qty : Float;
+    unit : Text;
+    rate : Float;
+    gstRate : Float;
+  };
+
+  public type BusinessDoc = {
+    id : Text;
+    docType : DocType;
+    number : Text;
+    date : Text;
+    dueDate : Text;
+    validity : Text;
+    clientId : Text;
+    businessGstin : Text;
+    placeOfSupply : Text;
+    lineItems : [LineItem];
+    notes : Text;
+    terms : Text;
+    coverMessage : Text;
+    status : DocStatus;
+    createdAt : Int;
+    linkedChatId : Text;
+    owner : Principal;
+  };
+
+  var docCounter : Nat = 0;
+  let businessDocs = Map.empty<Text, BusinessDoc>();
+
+  func nextDocId() : Text {
+    docCounter += 1;
+    "doc" # docCounter.toText();
+  };
+
+  public shared ({ caller }) func createDoc(docType : DocType, number : Text, date : Text, dueDate : Text, validity : Text, clientId : Text, businessGstin : Text, placeOfSupply : Text, lineItems : [LineItem], notes : Text, terms : Text, coverMessage : Text, linkedChatId : Text) : async Text {
+    if (not (userProfiles.containsKey(caller))) { Runtime.trap("Must be registered") };
+    let id = nextDocId();
+    let d : BusinessDoc = {
+      id; docType; number; date; dueDate; validity; clientId; businessGstin;
+      placeOfSupply; lineItems; notes; terms; coverMessage;
+      status = #draft; createdAt = Time.now(); linkedChatId; owner = caller;
+    };
+    businessDocs.add(id, d);
+    id;
+  };
+
+  public shared ({ caller }) func updateDoc(id : Text, date : Text, dueDate : Text, validity : Text, clientId : Text, businessGstin : Text, placeOfSupply : Text, lineItems : [LineItem], notes : Text, terms : Text, coverMessage : Text) : async () {
+    switch (businessDocs.get(id)) {
+      case (null) { Runtime.trap("Doc not found") };
+      case (?d) {
+        if (not Principal.equal(d.owner, caller)) { Runtime.trap("Unauthorized") };
+        let updated : BusinessDoc = {
+          id; docType = d.docType; number = d.number; date; dueDate; validity; clientId;
+          businessGstin; placeOfSupply; lineItems; notes; terms; coverMessage;
+          status = d.status; createdAt = d.createdAt; linkedChatId = d.linkedChatId; owner = caller;
+        };
+        businessDocs.add(id, updated);
+      };
+    };
+  };
+
+  public shared ({ caller }) func updateDocStatus(id : Text, status : DocStatus) : async () {
+    switch (businessDocs.get(id)) {
+      case (null) { Runtime.trap("Doc not found") };
+      case (?d) {
+        if (not Principal.equal(d.owner, caller)) { Runtime.trap("Unauthorized") };
+        let updated : BusinessDoc = {
+          id; docType = d.docType; number = d.number; date = d.date; dueDate = d.dueDate;
+          validity = d.validity; clientId = d.clientId; businessGstin = d.businessGstin;
+          placeOfSupply = d.placeOfSupply; lineItems = d.lineItems; notes = d.notes;
+          terms = d.terms; coverMessage = d.coverMessage; status;
+          createdAt = d.createdAt; linkedChatId = d.linkedChatId; owner = d.owner;
+        };
+        businessDocs.add(id, updated);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteDoc(id : Text) : async () {
+    switch (businessDocs.get(id)) {
+      case (null) { Runtime.trap("Doc not found") };
+      case (?d) {
+        if (not Principal.equal(d.owner, caller)) { Runtime.trap("Unauthorized") };
+        ignore (businessDocs.remove(id));
+      };
+    };
+  };
+
+  public query ({ caller }) func listMyDocs() : async [BusinessDoc] {
+    var result : [BusinessDoc] = [];
+    for (d in businessDocs.values()) {
+      if (Principal.equal(d.owner, caller)) {
+        let n = result.size();
+        result := Array.tabulate<BusinessDoc>(n + 1, func(i) { if (i < n) result[i] else d });
+      };
+    };
+    result;
+  };
+
 };

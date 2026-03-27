@@ -96,12 +96,12 @@ function computeStats() {
   const teamCount = users.length;
 
   // Activities
-  const activities = dataStore.getActivities<Activity>();
+  const activities: Activity[] = []; // Activities now in backend canister
   const activityCount = activities.length;
   const pendingCount = activities.filter((a) => a.status === "pending").length;
 
   // Invoices
-  const docs = dataStore.getDocs<Doc>();
+  const docs: Doc[] = []; // Docs now in backend canister
   const invoices = docs.filter((d) => d.type === "invoice");
   const invoiceCount = invoices.length;
   const invoiceTotal = invoices.reduce(

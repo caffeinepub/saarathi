@@ -36,7 +36,17 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { dataStore } from "../store/dataStore";
+import { useActor } from "../hooks/useActor";
+import {
+  type CanisterBusinessDoc,
+  type CanisterClient,
+  type CanisterProduct,
+  asExtended,
+  canisterDocStatusToLocal,
+  canisterDocTypeToLocal,
+  docStatusToCanister,
+  docTypeToCanister,
+} from "../utils/backendExtensions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Client {
@@ -178,7 +188,7 @@ const INITIAL_CLIENTS: Client[] = [
   },
 ];
 
-const INITIAL_PRODUCTS: Product[] = [
+const _INITIAL_PRODUCTS: Product[] = [
   {
     id: "p1",
     name: "Software Consulting",
@@ -245,7 +255,7 @@ const nextMonth = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   .toISOString()
   .slice(0, 10);
 
-const INITIAL_DOCS: BusinessDoc[] = [
+const _INITIAL_DOCS: BusinessDoc[] = [
   {
     id: "d1",
     type: "invoice",
@@ -2809,22 +2819,94 @@ function MoneySnapshot() {
 }
 
 export default function BusinessSuitePage() {
-  const [clients, setClients] = useState<Client[]>(() =>
-    dataStore.getClients<Client>(INITIAL_CLIENTS),
-  );
-  const [products, setProducts] = useState<Product[]>(() =>
-    dataStore.getProducts<Product>(INITIAL_PRODUCTS),
-  );
-  const [docs, setDocs] = useState<BusinessDoc[]>(() =>
-    dataStore.getDocs<BusinessDoc>(INITIAL_DOCS),
-  );
+  const { actor } = useActor();
+  const [clients, setClients] = useState<Client[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [docs, setDocs] = useState<BusinessDoc[]>([]);
+  const [loadingBusiness, setLoadingBusiness] = useState(true);
   const [sendTarget, setSendTarget] = useState<BusinessDoc | null>(null);
   const [printDoc, setPrintDoc] = useState<BusinessDoc | null>(null);
 
-  // Persist to dataStore on changes
+  // Mapping helpers
+  function mapCanisterClient(c: CanisterClient): Client {
+    return {
+      id: c.id,
+      name: c.name,
+      gstin: c.gstin,
+      email: c.email,
+      phone: c.phone,
+      address: c.address,
+      city: c.city,
+      state: c.state,
+      placeOfSupply: c.placeOfSupply,
+    };
+  }
+  function mapCanisterProduct(p: CanisterProduct): Product {
+    return {
+      id: p.id,
+      name: p.name,
+      hsnSac: p.hsnSac,
+      description: p.description,
+      unit: p.unit,
+      price: p.price,
+      gstRate: p.gstRate,
+    };
+  }
+  function mapCanisterDoc(d: CanisterBusinessDoc): BusinessDoc {
+    return {
+      id: d.id,
+      type: canisterDocTypeToLocal(d.docType) as DocType,
+      number: d.number,
+      date: d.date,
+      dueDate: d.dueDate,
+      validity: d.validity,
+      clientId: d.clientId,
+      businessGstin: d.businessGstin,
+      placeOfSupply: d.placeOfSupply,
+      lineItems: d.lineItems,
+      notes: d.notes,
+      terms: d.terms,
+      coverMessage: d.coverMessage,
+      status: canisterDocStatusToLocal(d.status) as DocStatus,
+      createdAt: Number(d.createdAt) / 1_000_000,
+      linkedChatId: d.linkedChatId || undefined,
+    };
+  }
+
+  // Load data from canister + poll docs every 5s
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mapping helpers are stable component functions
   useEffect(() => {
-    dataStore.setDocs(docs);
-  }, [docs]);
+    if (!actor) return;
+    const ext = asExtended(actor);
+
+    async function fetchAll() {
+      try {
+        const [rawClients, rawProducts, rawDocs] = await Promise.all([
+          ext.listMyClients(),
+          ext.listMyProducts(),
+          ext.listMyDocs(),
+        ]);
+        setClients(rawClients.map(mapCanisterClient));
+        setProducts(rawProducts.map(mapCanisterProduct));
+        setDocs(rawDocs.map(mapCanisterDoc));
+      } catch (err) {
+        console.error("Failed to load business data:", err);
+        toast.error("Failed to load business data");
+      } finally {
+        setLoadingBusiness(false);
+      }
+    }
+
+    fetchAll();
+    const interval = setInterval(async () => {
+      if (!actor) return;
+      try {
+        const rawDocs = await asExtended(actor).listMyDocs();
+        setDocs(rawDocs.map(mapCanisterDoc));
+      } catch {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [actor]);
 
   // Sync docs and clients when updated externally (e.g. via Send Now in chat)
   useEffect(() => {
@@ -2896,12 +2978,6 @@ export default function BusinessSuitePage() {
       }
     } catch {}
   }, []);
-  useEffect(() => {
-    dataStore.setClients(clients);
-  }, [clients]);
-  useEffect(() => {
-    dataStore.setProducts(products);
-  }, [products]);
 
   // Doc counts for tab badges
   const counts = useMemo(
@@ -2913,80 +2989,243 @@ export default function BusinessSuitePage() {
     [docs],
   );
 
-  function addDoc(doc: BusinessDoc) {
-    setDocs((prev) => [doc, ...prev]);
-    // Auto-message in chat when invoice/doc is saved
-    if (doc.type === "invoice") {
-      try {
-        const clientsRaw = localStorage.getItem("saarathi_clients");
-        const clientsList: Array<{ id: string; name: string }> = clientsRaw
-          ? JSON.parse(clientsRaw)
-          : [];
-        const client = clientsList.find((c) => c.id === doc.clientId);
-        const clientName = client?.name ?? "Client";
-        const msg = {
-          id: `inv_msg_${Date.now()}`,
-          senderId: "me",
-          senderName: "You",
-          content: `📄 Invoice ${doc.number} sent to ${clientName}`,
-          msgType: "text",
-          timestamp: Date.now(),
-        };
-        const stored = JSON.parse(
-          localStorage.getItem("saarathi_messages") || "{}",
-        );
-        const chatKey = "group_g1"; // Default sales team chat
-        stored[chatKey] = [...(stored[chatKey] ?? []), msg];
-        localStorage.setItem("saarathi_messages", JSON.stringify(stored));
-      } catch {}
-      toast.success("Invoice ready");
+  async function addDoc(doc: BusinessDoc) {
+    if (!actor) {
+      toast.error("Not connected");
+      return;
+    }
+    try {
+      const ext = asExtended(actor);
+      await ext.createDoc(
+        docTypeToCanister(doc.type),
+        doc.number,
+        doc.date,
+        doc.dueDate,
+        doc.validity,
+        doc.clientId,
+        doc.businessGstin,
+        doc.placeOfSupply,
+        doc.lineItems,
+        doc.notes,
+        doc.terms,
+        doc.coverMessage,
+        doc.linkedChatId || "",
+      );
+      const rawDocs = await ext.listMyDocs();
+      setDocs(rawDocs.map(mapCanisterDoc));
+      // Auto-message in chat when invoice/doc is saved
+      if (doc.type === "invoice") {
+        try {
+          const client = clients.find((c) => c.id === doc.clientId);
+          const clientName = client?.name ?? "Client";
+          const msg = {
+            id: `inv_msg_${Date.now()}`,
+            senderId: "me",
+            senderName: "You",
+            content: `📄 Invoice ${doc.number} sent to ${clientName}`,
+            msgType: "text",
+            timestamp: Date.now(),
+          };
+          const stored = JSON.parse(
+            localStorage.getItem("saarathi_messages") || "{}",
+          );
+          const chatKey = "group_g1";
+          stored[chatKey] = [...(stored[chatKey] ?? []), msg];
+          localStorage.setItem("saarathi_messages", JSON.stringify(stored));
+        } catch {}
+        toast.success("Invoice ready");
+      }
+    } catch (err) {
+      console.error("Failed to create doc:", err);
+      toast.error("Failed to save document");
     }
   }
-  function updateDoc(doc: BusinessDoc) {
-    setDocs((prev) => prev.map((d) => (d.id === doc.id ? doc : d)));
+  async function updateDoc(doc: BusinessDoc) {
+    if (!actor) return;
+    try {
+      await asExtended(actor).updateDoc(
+        doc.id,
+        doc.date,
+        doc.dueDate,
+        doc.validity,
+        doc.clientId,
+        doc.businessGstin,
+        doc.placeOfSupply,
+        doc.lineItems,
+        doc.notes,
+        doc.terms,
+        doc.coverMessage,
+      );
+      setDocs((prev) => prev.map((d) => (d.id === doc.id ? doc : d)));
+    } catch (err) {
+      console.error("Failed to update doc:", err);
+      toast.error("Failed to update document");
+    }
   }
-  function deleteDoc(id: string) {
-    setDocs((prev) => prev.filter((d) => d.id !== id));
-    toast.success("Document deleted.");
+  async function deleteDoc(id: string) {
+    if (!actor) return;
+    try {
+      await asExtended(actor).deleteDoc(id);
+      setDocs((prev) => prev.filter((d) => d.id !== id));
+      toast.success("Document deleted.");
+    } catch (err) {
+      console.error("Failed to delete doc:", err);
+      toast.error("Failed to delete document");
+    }
   }
-  function duplicateDoc(doc: BusinessDoc) {
-    const newDoc: BusinessDoc = {
-      ...doc,
-      id: `d${Date.now()}`,
-      number: genDocNumber(doc.type, docs),
-      date: today,
-      status: "draft",
-      createdAt: Date.now(),
-    };
-    setDocs((prev) => [newDoc, ...prev]);
-    toast.success("Document duplicated.");
+  async function duplicateDoc(doc: BusinessDoc) {
+    if (!actor) return;
+    try {
+      const ext = asExtended(actor);
+      const newDoc: BusinessDoc = {
+        ...doc,
+        id: `d${Date.now()}`,
+        number: genDocNumber(doc.type, docs),
+        date: today,
+        status: "draft",
+        createdAt: Date.now(),
+      };
+      await ext.createDoc(
+        docTypeToCanister(newDoc.type),
+        newDoc.number,
+        newDoc.date,
+        newDoc.dueDate,
+        newDoc.validity,
+        newDoc.clientId,
+        newDoc.businessGstin,
+        newDoc.placeOfSupply,
+        newDoc.lineItems,
+        newDoc.notes,
+        newDoc.terms,
+        newDoc.coverMessage,
+        newDoc.linkedChatId || "",
+      );
+      const rawDocs = await ext.listMyDocs();
+      setDocs(rawDocs.map(mapCanisterDoc));
+      toast.success("Document duplicated.");
+    } catch (err) {
+      console.error("Failed to duplicate doc:", err);
+      toast.error("Failed to duplicate document");
+    }
   }
-  function cycleDocStatus(id: string) {
-    setDocs((prev) =>
-      prev.map((d) =>
-        d.id === id ? { ...d, status: nextStatus(d.status, d.type) } : d,
-      ),
-    );
+  async function cycleDocStatus(id: string) {
+    const doc = docs.find((d) => d.id === id);
+    if (!doc || !actor) return;
+    const newStatus = nextStatus(doc.status, doc.type);
+    try {
+      await asExtended(actor).updateDocStatus(
+        id,
+        docStatusToCanister(newStatus),
+      );
+      setDocs((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, status: newStatus } : d)),
+      );
+    } catch (err) {
+      console.error("Failed to update doc status:", err);
+      toast.error("Failed to update status");
+    }
   }
 
-  function addClient(c: Client) {
-    setClients((prev) => [c, ...prev]);
+  async function addClient(c: Client) {
+    if (!actor) return;
+    try {
+      const ext = asExtended(actor);
+      await ext.createClient(
+        c.name,
+        c.gstin,
+        c.email,
+        c.phone,
+        c.address,
+        c.city,
+        c.state,
+        c.placeOfSupply,
+      );
+      const rawClients = await ext.listMyClients();
+      setClients(rawClients.map(mapCanisterClient));
+    } catch (err) {
+      console.error("Failed to add client:", err);
+      toast.error("Failed to save client");
+    }
   }
-  function updateClient(c: Client) {
-    setClients((prev) => prev.map((x) => (x.id === c.id ? c : x)));
+  async function updateClient(c: Client) {
+    if (!actor) return;
+    try {
+      const ext = asExtended(actor);
+      await ext.updateClient(
+        c.id,
+        c.name,
+        c.gstin,
+        c.email,
+        c.phone,
+        c.address,
+        c.city,
+        c.state,
+        c.placeOfSupply,
+      );
+      setClients((prev) => prev.map((x) => (x.id === c.id ? c : x)));
+    } catch (err) {
+      console.error("Failed to update client:", err);
+      toast.error("Failed to update client");
+    }
   }
-  function deleteClient(id: string) {
-    setClients((prev) => prev.filter((c) => c.id !== id));
+  async function deleteClient(id: string) {
+    if (!actor) return;
+    try {
+      await asExtended(actor).deleteClient(id);
+      setClients((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      console.error("Failed to delete client:", err);
+      toast.error("Failed to delete client");
+    }
   }
 
-  function addProduct(p: Product) {
-    setProducts((prev) => [p, ...prev]);
+  async function addProduct(p: Product) {
+    if (!actor) return;
+    try {
+      const ext = asExtended(actor);
+      await ext.createProduct(
+        p.name,
+        p.hsnSac,
+        p.description,
+        p.unit,
+        p.price,
+        p.gstRate,
+      );
+      const rawProducts = await ext.listMyProducts();
+      setProducts(rawProducts.map(mapCanisterProduct));
+    } catch (err) {
+      console.error("Failed to add product:", err);
+      toast.error("Failed to save product");
+    }
   }
-  function updateProduct(p: Product) {
-    setProducts((prev) => prev.map((x) => (x.id === p.id ? p : x)));
+  async function updateProduct(p: Product) {
+    if (!actor) return;
+    try {
+      const ext = asExtended(actor);
+      await ext.updateProduct(
+        p.id,
+        p.name,
+        p.hsnSac,
+        p.description,
+        p.unit,
+        p.price,
+        p.gstRate,
+      );
+      setProducts((prev) => prev.map((x) => (x.id === p.id ? p : x)));
+    } catch (err) {
+      console.error("Failed to update product:", err);
+      toast.error("Failed to update product");
+    }
   }
-  function deleteProduct(id: string) {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+  async function deleteProduct(id: string) {
+    if (!actor) return;
+    try {
+      await asExtended(actor).deleteProduct(id);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      console.error("Failed to delete product:", err);
+      toast.error("Failed to delete product");
+    }
   }
 
   function handlePrintDoc(doc: BusinessDoc) {
@@ -3007,6 +3246,16 @@ export default function BusinessSuitePage() {
     onAddClient: addClient,
     onPrintDoc: handlePrintDoc,
   };
+
+  if (loadingBusiness) {
+    return (
+      <div className="min-h-full bg-background flex items-center justify-center">
+        <div className="text-amber-600 text-sm animate-pulse">
+          Loading business data…
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
