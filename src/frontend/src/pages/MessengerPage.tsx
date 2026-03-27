@@ -391,24 +391,13 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
   ]);
   const [messages, setMessages] = useState<Record<string, LocalMessage[]>>(
     () => {
-      const base = makeSampleMessages(currentUserId, currentDisplayName);
       try {
         const stored = localStorage.getItem("saarathi_messages");
         if (stored) {
-          const parsed: Record<string, LocalMessage[]> = JSON.parse(stored);
-          const merged = { ...base };
-          for (const [key, msgs] of Object.entries(parsed)) {
-            const existing = merged[key] ?? [];
-            const existingIds = new Set(existing.map((m) => m.id));
-            const newMsgs = msgs.filter((m) => !existingIds.has(m.id));
-            merged[key] = [...existing, ...newMsgs].sort(
-              (a, b) => a.timestamp - b.timestamp,
-            );
-          }
-          return merged;
+          return JSON.parse(stored) as Record<string, LocalMessage[]>;
         }
       } catch {}
-      return base;
+      return makeSampleMessages(currentUserId, currentDisplayName);
     },
   );
   const [currentChat, setCurrentChat] = useState<ChatTarget | null>(null);

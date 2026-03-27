@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Bell,
   Globe,
+  Loader2,
   MessageCircle,
   Plus,
   Save,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { createActorWithConfig } from "../config";
 
 interface Contact {
   id: string;
@@ -55,6 +57,8 @@ function loadNotifPrefs(): NotifPrefs {
     dailySummary: false,
   };
 }
+
+const DEMO_CONTACT_IDS = ["c_priya_s", "c_ravi_k", "c_rajesh_m", "c_amit_p"];
 
 function loadContacts(): Contact[] {
   try {
@@ -113,6 +117,7 @@ export default function SettingsPage() {
     phone: "",
     role: "Colleague" as Contact["role"],
   });
+  const [alsoAddAsClient, setAlsoAddAsClient] = useState(false);
   const [csvText, setCsvText] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -124,6 +129,7 @@ export default function SettingsPage() {
     businessName: string;
   } | null>(null);
   const [findError, setFindError] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
 
   function saveProfile() {
     localStorage.setItem("saarathi_profile", JSON.stringify(profile));
@@ -156,8 +162,34 @@ export default function SettingsPage() {
     const updated = [...contacts, contact];
     setContacts(updated);
     localStorage.setItem("saarathi_contacts", JSON.stringify(updated));
+    // Also add to Business Suite clients if checked
+    if (alsoAddAsClient) {
+      try {
+        const existingClients = JSON.parse(
+          localStorage.getItem("saarathi_clients") || "[]",
+        );
+        const newClient = {
+          id: `c_${contact.id}`,
+          name: contact.name,
+          phone: contact.phone,
+          email: "",
+          gstin: "",
+          address: "",
+          city: "",
+          state: "Maharashtra",
+          placeOfSupply: "Maharashtra",
+        };
+        localStorage.setItem(
+          "saarathi_clients",
+          JSON.stringify([...existingClients, newClient]),
+        );
+      } catch {}
+      toast.success("Contact added and registered as client in Business Suite");
+    } else {
+      toast.success("Contact added");
+    }
     setNewContact({ name: "", phone: "", role: "Colleague" });
-    toast.success("Contact added");
+    setAlsoAddAsClient(false);
   }
 
   function deleteContact(id: string) {
@@ -212,12 +244,15 @@ export default function SettingsPage() {
     window.open(`https://wa.me/?text=${msg}`, "_blank");
   }
 
-  function searchUser() {
+  async function searchUser() {
     setFoundUser(null);
     setFindError("");
     const query = findUsername.trim().toLowerCase();
     if (!query) return;
+
+    setIsSearching(true);
     try {
+      // Step 1: check localStorage (same-device users)
       const users = JSON.parse(localStorage.getItem("saarathi_users") || "{}");
       const currentUsername = JSON.parse(
         localStorage.getItem("saarathi_profile") || "{}",
@@ -226,18 +261,42 @@ export default function SettingsPage() {
         setFindError("That's your own account.");
         return;
       }
-      const entry = users[query];
-      if (!entry) {
-        setFindError("No user found with that username.");
+      const localEntry = users[query];
+      if (localEntry) {
+        setFoundUser({
+          username: localEntry.profile.username,
+          displayName: localEntry.profile.displayName,
+          businessName: localEntry.profile.businessName,
+        });
         return;
       }
-      setFoundUser({
-        username: entry.profile.username,
-        displayName: entry.profile.displayName,
-        businessName: entry.profile.businessName,
-      });
+
+      // Step 2: query backend canister for cross-device lookup
+      try {
+        const actor = await createActorWithConfig();
+        const allUsers = await actor.getAllUsersByUsername();
+        const match = allUsers.find((u) => u.username.toLowerCase() === query);
+        if (match) {
+          if (match.username.toLowerCase() === currentUsername) {
+            setFindError("That's your own account.");
+            return;
+          }
+          setFoundUser({
+            username: match.username,
+            displayName: match.displayName,
+            businessName: match.businessName,
+          });
+          return;
+        }
+      } catch {
+        // canister unavailable — fall through to not-found
+      }
+
+      setFindError("No user found with that username.");
     } catch {
       setFindError("Error searching users.");
+    } finally {
+      setIsSearching(false);
     }
   }
 
@@ -306,10 +365,23 @@ export default function SettingsPage() {
       const groups = JSON.parse(
         localStorage.getItem("saarathi_groups") || "[]",
       );
-      return groups.some(
+      const hasGroups = groups.some(
         (g: { id: string; isDemo?: boolean }) =>
           g.isDemo === true || DEMO_GROUP_IDS.includes(g.id),
       );
+      if (hasGroups) return true;
+
+      const activities = JSON.parse(
+        localStorage.getItem("saarathi_activities") || "[]",
+      );
+      if (activities.length > 0) return true;
+
+      const docs = JSON.parse(
+        localStorage.getItem("saarathi_business_docs") || "[]",
+      );
+      if (docs.length > 0) return true;
+
+      return false;
     } catch {
       return false;
     }
@@ -319,10 +391,11 @@ export default function SettingsPage() {
 
   function clearDemoData() {
     const confirmed = window.confirm(
-      "Remove all demo chats and contacts? Your real data will be kept.",
+      "Remove all demo data including chats, groups, activities, invoices, and contacts? Your real data will be kept.",
     );
     if (!confirmed) return;
 
+    // Clear demo groups
     try {
       const groups = JSON.parse(
         localStorage.getItem("saarathi_groups") || "[]",
@@ -334,18 +407,91 @@ export default function SettingsPage() {
       localStorage.setItem("saarathi_groups", JSON.stringify(filtered));
     } catch {}
 
+    // Clear demo messages - scan all localStorage keys
     try {
       const msgs = JSON.parse(
         localStorage.getItem("saarathi_messages") || "{}",
       );
+      // Remove hardcoded demo chat keys
       for (const key of DEMO_CHAT_KEYS) {
         delete msgs[key];
+      }
+      // Also collect all demo group IDs dynamically
+      const allGroups = JSON.parse(
+        localStorage.getItem("saarathi_groups") || "[]",
+      );
+      const demoGroupIds = new Set([
+        ...DEMO_GROUP_IDS,
+        ...allGroups
+          .filter((g: { isDemo?: boolean }) => g.isDemo === true)
+          .map((g: { id: string }) => g.id),
+      ]);
+      // Scan all keys for saarathi_messages_* pattern
+      for (const lsKey of Object.keys(localStorage)) {
+        if (lsKey.startsWith("saarathi_messages_")) {
+          const chatId = lsKey.replace("saarathi_messages_", "");
+          if (demoGroupIds.has(chatId) || DEMO_CHAT_KEYS.includes(chatId)) {
+            localStorage.removeItem(lsKey);
+          }
+        }
+      }
+      // Remove demo group keys from saarathi_messages object
+      for (const groupId of demoGroupIds) {
+        delete msgs[`group_${groupId}`];
+        delete msgs[groupId];
       }
       localStorage.setItem("saarathi_messages", JSON.stringify(msgs));
     } catch {}
 
+    // Clear activities - keep real ones (isDemo !== true)
+    try {
+      const existingActivities = JSON.parse(
+        localStorage.getItem("saarathi_activities") || "[]",
+      );
+      const realActivities = existingActivities.filter(
+        (a: { isDemo?: boolean }) => a.isDemo !== true,
+      );
+      localStorage.setItem(
+        "saarathi_activities",
+        JSON.stringify(realActivities),
+      );
+    } catch {}
+
+    // Clear business docs (invoices, proposals, estimates)
+    try {
+      localStorage.setItem("saarathi_business_docs", JSON.stringify([]));
+    } catch {}
+
+    // Clear clients
+    try {
+      localStorage.setItem("saarathi_clients", JSON.stringify([]));
+    } catch {}
+
+    // Clear products
+    try {
+      localStorage.setItem("saarathi_products", JSON.stringify([]));
+    } catch {}
+
+    // Filter out demo contacts
+    try {
+      const existingContacts = JSON.parse(
+        localStorage.getItem("saarathi_contacts") || "[]",
+      );
+      const realContacts = existingContacts.filter(
+        (c: { id: string }) =>
+          !DEMO_CONTACT_IDS.some((demoId) => c.id.startsWith(demoId)),
+      );
+      localStorage.setItem("saarathi_contacts", JSON.stringify(realContacts));
+      setContacts(realContacts);
+    } catch {}
+
+    // Clear DM contacts (demo ones)
+    try {
+      localStorage.setItem("saarathi_dm_contacts", JSON.stringify([]));
+    } catch {}
+
     setDemoActive(false);
-    toast.success("Demo data removed — now using real data");
+    toast.success("Demo data removed — now using real workspace");
   }
 
   const ROLE_COLORS: Record<Contact["role"], string> = {
@@ -573,6 +719,17 @@ export default function SettingsPage() {
                 <Plus className="w-4 h-4" />
               </Button>
             </div>
+            {/* Also register as client checkbox */}
+            <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={alsoAddAsClient}
+                onChange={(e) => setAlsoAddAsClient(e.target.checked)}
+                className="accent-amber-500 w-4 h-4"
+                data-ocid="settings.checkbox"
+              />
+              Also register as a client in Business Suite
+            </label>
 
             {/* CSV Import */}
             <div className="rounded-xl bg-[#2a2a2a] border border-white/8 p-3 space-y-2">
@@ -686,19 +843,34 @@ export default function SettingsPage() {
               <Input
                 value={findUsername}
                 onChange={(e) => setFindUsername(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && searchUser()}
+                onKeyDown={(e) =>
+                  e.key === "Enter" && !isSearching && searchUser()
+                }
                 placeholder="Enter username to search"
                 className="bg-[#2a2a2a] border-white/10 text-white placeholder:text-white/30 flex-1"
                 data-ocid="settings.search_input"
               />
               <Button
                 onClick={searchUser}
-                className="bg-amber-500 hover:bg-amber-600 text-black font-semibold px-4"
+                disabled={isSearching}
+                className="bg-amber-500 hover:bg-amber-600 text-black font-semibold px-4 disabled:opacity-60"
                 data-ocid="settings.primary_button"
               >
-                <Search className="w-4 h-4" />
+                {isSearching ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
               </Button>
             </div>
+            {isSearching && (
+              <p
+                className="text-sm text-white/40"
+                data-ocid="settings.loading_state"
+              >
+                Searching users...
+              </p>
+            )}
             {findError && (
               <p
                 className="text-sm text-red-400"
@@ -754,8 +926,9 @@ export default function SettingsPage() {
           </div>
           <div className="p-5 space-y-4">
             <p className="text-sm text-white/60">
-              Your app includes sample chats and contacts to help you explore.
-              Remove them when you're ready to use real data.
+              Your app includes sample chats, contacts, activities, and invoices
+              to help you explore. Remove them when you're ready to use real
+              data.
             </p>
             <div className="flex items-center gap-3">
               <span

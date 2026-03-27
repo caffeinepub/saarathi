@@ -91,6 +91,7 @@ interface BusinessDoc {
   coverMessage: string;
   status: DocStatus;
   createdAt: number;
+  linkedChatId?: string;
 }
 
 // ─── Indian States ────────────────────────────────────────────────────────────
@@ -908,6 +909,28 @@ function DocFormDialog({
   const [doc, setDoc] = useState<BusinessDoc>(editDoc ?? blankDoc());
   const [showInlineClient, setShowInlineClient] = useState(false);
   const [inlineClient, setInlineClient] = useState<Partial<Client>>({});
+  const [contactSuggestion, setContactSuggestion] = useState<{
+    name: string;
+    phone: string;
+  } | null>(null);
+
+  function checkContactMatch(name: string) {
+    if (name.length < 3) {
+      setContactSuggestion(null);
+      return;
+    }
+    try {
+      const contacts = JSON.parse(
+        localStorage.getItem("saarathi_contacts") || "[]",
+      );
+      const match = contacts.find((c: { name: string; phone: string }) =>
+        c.name.toLowerCase().includes(name.toLowerCase()),
+      );
+      setContactSuggestion(match ?? null);
+    } catch {
+      setContactSuggestion(null);
+    }
+  }
 
   const docKey = editDoc?.id ?? `new-${type}`;
 
@@ -1220,14 +1243,38 @@ function DocFormDialog({
                         placeholder="Business Name *"
                         className="bg-white text-sm"
                         value={inlineClient.name ?? ""}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setInlineClient((p) => ({
                             ...p,
                             name: e.target.value,
-                          }))
-                        }
+                          }));
+                          checkContactMatch(e.target.value);
+                        }}
                         data-ocid="doc.input"
                       />
+                      {contactSuggestion && (
+                        <div className="flex items-center gap-2 mt-1 p-2 bg-blue-50 rounded-lg border border-blue-200 text-xs">
+                          <span className="text-blue-700">
+                            Link to existing contact:{" "}
+                            <strong>{contactSuggestion.name}</strong>?
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setInlineClient((p) => ({
+                                ...p,
+                                name: contactSuggestion.name,
+                                phone: contactSuggestion.phone,
+                              }));
+                              setContactSuggestion(null);
+                            }}
+                            className="ml-auto px-2 py-0.5 bg-blue-500 text-white rounded hover:bg-blue-600"
+                            data-ocid="doc.primary_button"
+                          >
+                            Link
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <Input
                       placeholder="GSTIN"
@@ -2017,6 +2064,29 @@ function DocListTab({
                 onPrint={() => onPrintDoc(doc)}
                 onMarkPaid={() => {
                   onStatusCycle(doc.id);
+                  // Post chat message
+                  try {
+                    const paidMsg = {
+                      id: `paid_${Date.now()}`,
+                      senderId: "me",
+                      senderName: "You",
+                      content: `💳 Invoice ${doc.number} has been marked as Paid`,
+                      msgType: "text",
+                      timestamp: Date.now(),
+                    };
+                    const stored = JSON.parse(
+                      localStorage.getItem("saarathi_messages") || "{}",
+                    );
+                    const chatKey = doc.linkedChatId || "group_g1";
+                    stored[chatKey] = [...(stored[chatKey] ?? []), paidMsg];
+                    localStorage.setItem(
+                      "saarathi_messages",
+                      JSON.stringify(stored),
+                    );
+                    window.dispatchEvent(
+                      new CustomEvent("saarathi_messages_updated"),
+                    );
+                  } catch {}
                   toast.success("Invoice marked as paid");
                 }}
                 onSendReminder={() => {

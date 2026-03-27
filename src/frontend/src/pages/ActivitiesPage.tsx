@@ -79,6 +79,7 @@ interface Activity {
   createdBy: string;
   createdAt: number;
   messengerSent: boolean;
+  isDemo?: boolean;
   attachments?: ActivityAttachment[];
   chatThreadId?: string;
 }
@@ -119,6 +120,7 @@ const INITIAL_ACTIVITIES: Activity[] = [
     createdBy: "Admin",
     createdAt: Date.now() - 1 * 24 * 60 * 60 * 1000,
     messengerSent: false,
+    isDemo: true,
   },
   {
     id: "a2",
@@ -139,6 +141,7 @@ const INITIAL_ACTIVITIES: Activity[] = [
     createdBy: "Admin",
     createdAt: Date.now() - 2 * 24 * 60 * 60 * 1000,
     messengerSent: true,
+    isDemo: true,
   },
   {
     id: "a3",
@@ -158,6 +161,7 @@ const INITIAL_ACTIVITIES: Activity[] = [
     createdBy: "Admin",
     createdAt: Date.now() - 4 * 24 * 60 * 60 * 1000,
     messengerSent: false,
+    isDemo: true,
   },
   {
     id: "a4",
@@ -178,6 +182,7 @@ const INITIAL_ACTIVITIES: Activity[] = [
     createdBy: "Admin",
     createdAt: Date.now() - 3 * 60 * 60 * 1000,
     messengerSent: false,
+    isDemo: true,
   },
 ];
 
@@ -246,12 +251,14 @@ function ActivityCard({
   onStatusChange,
   onSendToMessenger,
   onNudge,
+  onMarkDone,
 }: {
   activity: Activity;
   index: number;
   onStatusChange: (id: string) => void;
   onSendToMessenger: (activity: Activity) => void;
   onNudge: (activity: Activity, message: string) => void;
+  onMarkDone: (id: string) => void;
 }) {
   const sc = STATUS_CONFIG[activity.status];
   const tc = TASK_TYPE_CONFIG[activity.taskType];
@@ -301,11 +308,15 @@ function ActivityCard({
       transition={{ delay: index * 0.06 }}
       data-ocid={`activity.item.${index + 1}`}
       className={`bg-white rounded-xl border shadow-card hover:shadow-md transition-shadow p-5 ${
-        overdue
-          ? "border-l-4 border-l-red-500 border-red-100 animate-urgent-pulse"
-          : isToday
-            ? "border-amber-300 bg-amber-50/30"
-            : "border-amber-100"
+        activity.status === "completed"
+          ? "border-green-100 opacity-50"
+          : activity.status === "inProgress"
+            ? "border-blue-100 opacity-75"
+            : overdue
+              ? "border-l-4 border-l-red-500 border-red-100 animate-urgent-pulse"
+              : isToday
+                ? "border-amber-300 bg-amber-50/30"
+                : "border-amber-100"
       }`}
     >
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -357,12 +368,19 @@ function ActivityCard({
             {activity.title}
           </h3>
         </div>
-        <span
-          className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border flex items-center gap-1 ${sc.color}`}
-        >
-          <StatusIcon className="w-3 h-3" />
-          {sc.label}
-        </span>
+        <div className="flex flex-col items-end gap-0.5 shrink-0">
+          <span
+            className={`text-xs font-medium px-2.5 py-1 rounded-full border flex items-center gap-1 ${sc.color}`}
+          >
+            <StatusIcon className="w-3 h-3" />
+            {activity.status === "inProgress" ? "Accepted" : sc.label}
+          </span>
+          {activity.status === "inProgress" && (
+            <span className="text-[10px] text-blue-500">
+              Waiting for completion
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-muted-foreground mb-4">
@@ -440,16 +458,29 @@ function ActivityCard({
       )}
 
       <div className="flex gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          className="flex-1 border-amber-200 text-amber-700 hover:bg-amber-50"
-          onClick={() => onStatusChange(activity.id)}
-          data-ocid={`activity.toggle.${index + 1}`}
-        >
-          <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-          Change Status
-        </Button>
+        {activity.status !== "completed" && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 border-amber-200 text-amber-700 hover:bg-amber-50"
+            onClick={() => onStatusChange(activity.id)}
+            data-ocid={`activity.toggle.${index + 1}`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+            Change Status
+          </Button>
+        )}
+        {activity.status === "inProgress" && (
+          <Button
+            size="sm"
+            className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+            onClick={() => onMarkDone(activity.id)}
+            data-ocid={`activity.save_button.${index + 1}`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+            Mark as Done
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"
@@ -1530,11 +1561,7 @@ export default function ActivitiesPage() {
       const stored = localStorage.getItem("saarathi_activities");
       if (stored) {
         const parsed: Activity[] = JSON.parse(stored);
-        const merged = [...INITIAL_ACTIVITIES];
-        for (const a of parsed) {
-          if (!merged.find((m) => m.id === a.id)) merged.push(a);
-        }
-        return merged;
+        return parsed;
       }
     } catch {}
     return INITIAL_ACTIVITIES;
@@ -1588,7 +1615,12 @@ export default function ActivitiesPage() {
   const availableUsers = messengerUsers;
 
   const filtered = useMemo(() => {
-    const base = [...activities].sort((a, b) => b.createdAt - a.createdAt);
+    const base = [...activities].sort((a, b) => {
+      // Sort completed to the bottom
+      if (a.status === "completed" && b.status !== "completed") return 1;
+      if (b.status === "completed" && a.status !== "completed") return -1;
+      return b.createdAt - a.createdAt;
+    });
     if (filter === "all") return base;
     return base.filter((a) => a.status === filter);
   }, [activities, filter]);
@@ -1624,6 +1656,37 @@ export default function ActivitiesPage() {
         a.id === id ? { ...a, status: nextStatus(a.status) } : a,
       ),
     );
+  }
+
+  function handleMarkDone(id: string) {
+    const activity = activities.find((a) => a.id === id);
+    setActivities((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, status: "completed" } : a)),
+    );
+    toast.success("Task marked as completed!");
+    // Post chat message
+    if (activity) {
+      try {
+        const chatTarget = activity.chatThreadId || "group_g1";
+        const msgs = JSON.parse(
+          localStorage.getItem("saarathi_messages") || "{}",
+        );
+        const now = Date.now();
+        msgs[chatTarget] = [
+          ...(msgs[chatTarget] || []),
+          {
+            id: `done_${now}`,
+            senderId: "me",
+            senderName: "You",
+            content: `✅ Task completed: ${activity.title}`,
+            msgType: "text",
+            timestamp: now,
+          },
+        ];
+        localStorage.setItem("saarathi_messages", JSON.stringify(msgs));
+        window.dispatchEvent(new CustomEvent("saarathi_messages_updated"));
+      } catch {}
+    }
   }
 
   function handleMessengerSent(id: string) {
@@ -1775,6 +1838,7 @@ export default function ActivitiesPage() {
                       onStatusChange={handleStatusChange}
                       onSendToMessenger={setMessengerTarget}
                       onNudge={handleNudge}
+                      onMarkDone={handleMarkDone}
                     />
                   ))}
                 </div>

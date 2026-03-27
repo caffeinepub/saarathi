@@ -5,7 +5,7 @@ import type { LocalGroup, LocalUser } from "../pages/messenger/types";
 // ─── Keys ────────────────────────────────────────────────────────────────────
 const KEYS = {
   MESSENGER_GROUPS: "saarathi_groups",
-  MESSENGER_USERS: "saarathi_users",
+  MESSENGER_USERS: "saarathi_messenger_users",
   ACTIVITIES: "saarathi_activities",
   BUSINESS_DOCS: "saarathi_business_docs",
   CLIENTS: "saarathi_clients",

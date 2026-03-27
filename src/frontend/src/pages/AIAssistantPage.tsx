@@ -786,10 +786,10 @@ export default function AIAssistantPage() {
             </div>
             <div>
               <h1 className="font-display text-2xl font-bold text-white">
-                AI Assistant
+                AI Deep Dive
               </h1>
               <p className="text-amber-100 text-sm">
-                Natural language commands for tasks, invoices & more
+                Use chat for daily actions. Use this for advanced queries.
               </p>
             </div>
           </div>

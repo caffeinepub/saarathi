@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type UserProfile, UserRole } from "../backend";
+import { createActorWithConfig } from "../config";
 
 // ---------------------------------------------------------------------------
 // Local-storage based auth helpers (no canister dependency)
@@ -83,12 +84,26 @@ export function useRegisterMutation() {
       displayName: string;
       businessName: string;
     }) => {
-      return localRegister(
+      const profile = localRegister(
         data.username,
         data.password,
         data.displayName,
         data.businessName,
       );
+      // Fire-and-forget: also register in backend canister for cross-device lookup
+      createActorWithConfig()
+        .then((actor) =>
+          actor.registerUser(
+            data.username,
+            data.displayName,
+            data.businessName,
+            data.password,
+          ),
+        )
+        .catch(() => {
+          // Canister unavailable — localStorage registration still succeeded
+        });
+      return profile;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
