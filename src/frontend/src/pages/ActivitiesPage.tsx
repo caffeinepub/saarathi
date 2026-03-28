@@ -1592,6 +1592,23 @@ export default function ActivitiesPage() {
       setMessengerUsers(
         users.map((u: { displayName: string }) => u.displayName),
       );
+    // Also load from contacts storage
+    try {
+      const raw = localStorage.getItem("saarathi_contacts");
+      const contacts = raw ? JSON.parse(raw) : [];
+      const contactNames = contacts
+        .map(
+          (c: { displayName?: string; name?: string; label?: string }) =>
+            c.displayName || c.name || c.label || "",
+        )
+        .filter(Boolean);
+      if (contactNames.length > 0) {
+        setMessengerUsers((prev) => {
+          const combined = [...new Set([...prev, ...contactNames])];
+          return combined;
+        });
+      }
+    } catch {}
   }, []);
 
   // Load activities from canister + poll every 5s
@@ -1873,7 +1890,7 @@ export default function ActivitiesPage() {
   }
 
   return (
-    <div className="min-h-full bg-background">
+    <div className="h-full overflow-y-auto bg-background">
       {canisterStopped && (
         <div className="bg-yellow-500/20 border-b border-yellow-500/40 px-4 py-2 text-yellow-700 text-sm flex items-center gap-2">
           <span>⚠️</span>

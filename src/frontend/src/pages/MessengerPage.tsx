@@ -1,5 +1,5 @@
 import { Compass, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useActor } from "../hooks/useActor";
 import { dataStore } from "../store/dataStore";
@@ -393,6 +393,7 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
   const currentDisplayName = profile?.displayName || profile?.username || "You";
   // Map username -> principal string for backend DM calls
   const [principalMap, setPrincipalMap] = useState<Record<string, string>>({});
+  const pendingDMSendsRef = useRef<{ userId: string; content: string }[]>([]);
   const [cachedClients, setCachedClients] = useState<
     import("../utils/backendExtensions").CanisterClient[]
   >([]);
@@ -652,7 +653,7 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
   }, [dmContacts]);
 
   // Poll backend for new messages in non-demo groups (every 5 seconds)
-  // eslint-disable-next-line
+  // biome-ignore lint/correctness/useExhaustiveDependencies: dmContacts intentionally excluded from poll deps
   useEffect(() => {
     if (!actor || !currentChat) return;
     const nonDemoGroup =
@@ -706,10 +707,21 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
               const senderStr = senderPrincipal
                 ? senderPrincipal.toString()
                 : "unknown";
+              // Look up display name from dmContacts using reverse principalMap
+              const reversePrincipal = Object.entries(principalMap).find(
+                ([, p]) => p === senderStr,
+              );
+              const contactForSender = reversePrincipal
+                ? dmContacts.find(
+                    (c) => (c.username || c.id) === reversePrincipal[0],
+                  )
+                : undefined;
+              const resolvedSenderName =
+                contactForSender?.displayName ?? `${senderStr.slice(0, 8)}…`;
               return {
                 id: m.id,
                 senderId: senderStr,
-                senderName: `${senderStr.slice(0, 8)}…`,
+                senderName: resolvedSenderName,
                 content: m.content,
                 msgType: "text" as const,
                 timestamp: Number(m.timestamp / 1_000_000n),
@@ -748,6 +760,29 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
             ...prev,
             [dmUserId]: match.principal.toString(),
           }));
+          // Flush any queued sends for this user
+          const pending = pendingDMSendsRef.current.filter(
+            (p) => p.userId === dmUserId,
+          );
+          pendingDMSendsRef.current = pendingDMSendsRef.current.filter(
+            (p) => p.userId !== dmUserId,
+          );
+          if (pending.length > 0 && actor) {
+            import("@icp-sdk/core/principal")
+              .then(({ Principal }) => {
+                const toPrincipal = Principal.fromText(
+                  match.principal.toString(),
+                );
+                for (const p of pending) {
+                  asExtended(actor!)
+                    .sendDirectMessage(toPrincipal, p.content, [], {
+                      text_: null,
+                    })
+                    .catch(() => {});
+                }
+              })
+              .catch(() => {});
+          }
         }
       } catch {
         // ignore
@@ -861,6 +896,12 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
                   .catch(() => {});
               })
               .catch(() => {});
+          } else {
+            // Principal not yet resolved — queue for delivery once resolved
+            pendingDMSendsRef.current.push({
+              userId: currentChat.userId,
+              content,
+            });
           }
         }
       }
@@ -937,14 +978,15 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
       setDmContacts((prev) =>
         prev.some((u) => u.id === user.id) ? prev : [...prev, user],
       );
+      const dmUserId = user.username || user.id;
       setCurrentChat({
         type: "dm",
-        userId: user.id,
+        userId: dmUserId,
         displayName: user.displayName,
       });
       setMobileShowChat(true);
       // Resolve the backend principal for this user so messages can be sent/received
-      if (actor && !principalMap[user.id]) {
+      if (actor && !principalMap[dmUserId]) {
         try {
           const lookup = (user.username || user.id).toLowerCase();
           const allUsers = await asExtended(actor).getAllPublicUsers();
@@ -954,7 +996,7 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
           if (match?.principal) {
             setPrincipalMap((prev) => ({
               ...prev,
-              [user.id]: match.principal.toString(),
+              [dmUserId]: match.principal.toString(),
             }));
           }
         } catch {

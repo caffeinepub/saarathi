@@ -3286,7 +3286,7 @@ export default function BusinessSuitePage() {
         }
       `}</style>
 
-      <div className="min-h-full bg-background">
+      <div className="h-full overflow-y-auto bg-background">
         {canisterStopped && (
           <div className="bg-yellow-500/20 border-b border-yellow-500/40 px-4 py-2 text-yellow-700 text-sm flex items-center gap-2">
             <span>⚠️</span>

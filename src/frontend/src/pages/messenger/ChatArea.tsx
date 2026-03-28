@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import MapPickerModal from "../../components/MapPickerModal";
 import type {
   CanisterBusinessDoc,
   CanisterClient,
@@ -1670,6 +1671,21 @@ export default function ChatArea({
   );
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [aiPanelInput, setAiPanelInput] = useState("");
+  const [contactNames, setContactNames] = useState<string[]>([]);
+  // Load contacts for WHO dropdown
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("saarathi_contacts");
+      const contacts = raw ? JSON.parse(raw) : [];
+      const names = contacts
+        .map(
+          (c: { displayName?: string; name?: string; label?: string }) =>
+            c.displayName || c.name || c.label || "",
+        )
+        .filter(Boolean);
+      setContactNames(names);
+    } catch {}
+  }, []);
   const [showInlineTask, setShowInlineTask] = useState(false);
   const [taskFields, setTaskFields] = useState({
     who: "",
@@ -1678,6 +1694,10 @@ export default function ChatArea({
     where: "",
     why: "",
   });
+  const [showTaskMapPicker, setShowTaskMapPicker] = useState(false);
+  const [taskLocationLat, setTaskLocationLat] = useState<number | undefined>();
+  const [taskLocationLng, setTaskLocationLng] = useState<number | undefined>();
+  const [whoOther, setWhoOther] = useState("");
   const [showInlineProposal, setShowInlineProposal] = useState(false);
   const [proposalFields, setProposalFields] = useState({
     client: "",
@@ -1686,14 +1706,12 @@ export default function ChatArea({
   });
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const msgCount = messages.length;
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: trigger scroll on message count change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll to bottom whenever messages change
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [msgCount]);
+  }, [messages]);
 
   function handleRequestChangeSubmit(
     msgId: string,
@@ -2244,7 +2262,7 @@ export default function ChatArea({
               <div className="flex flex-col flex-1 overflow-hidden min-h-0">
                 <div
                   ref={scrollRef}
-                  className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+                  className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3"
                 >
                   {messages.length === 0 && (
                     <div
@@ -2326,7 +2344,7 @@ export default function ChatArea({
           <div className="flex flex-col flex-1 overflow-hidden min-h-0">
             <div
               ref={scrollRef}
-              className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+              className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3"
             >
               {messages.length === 0 && (
                 <div
@@ -2488,16 +2506,46 @@ export default function ChatArea({
                   </button>
                 </div>
                 <div className="space-y-1.5">
-                  <input
-                    type="text"
-                    value={taskFields.who}
-                    onChange={(e) =>
-                      setTaskFields((p) => ({ ...p, who: e.target.value }))
+                  {/* WHO - contact dropdown */}
+                  <select
+                    value={
+                      taskFields.who === whoOther && whoOther
+                        ? "__other__"
+                        : taskFields.who
                     }
-                    placeholder="Who (assignee)"
-                    className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    data-ocid="messenger.inline_task.input"
-                  />
+                    onChange={(e) => {
+                      if (e.target.value === "__other__") {
+                        setTaskFields((p) => ({ ...p, who: whoOther }));
+                      } else {
+                        setWhoOther("");
+                        setTaskFields((p) => ({ ...p, who: e.target.value }));
+                      }
+                    }}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    data-ocid="messenger.inline_task.select"
+                  >
+                    <option value="">Select contact...</option>
+                    {contactNames.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                    <option value="__other__">Other (type name)</option>
+                  </select>
+                  {(taskFields.who === "__other__" ||
+                    (whoOther && !contactNames.includes(taskFields.who))) && (
+                    <input
+                      type="text"
+                      value={whoOther}
+                      onChange={(e) => {
+                        setWhoOther(e.target.value);
+                        setTaskFields((p) => ({ ...p, who: e.target.value }));
+                      }}
+                      placeholder="Enter name..."
+                      className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      data-ocid="messenger.inline_task.input"
+                    />
+                  )}
                   <input
                     type="text"
                     value={taskFields.what}
@@ -2507,24 +2555,53 @@ export default function ChatArea({
                     placeholder="What (task description)"
                     className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
                   />
+                  {/* WHEN - datetime-local picker */}
                   <input
-                    type="text"
+                    type="datetime-local"
                     value={taskFields.when}
                     onChange={(e) =>
                       setTaskFields((p) => ({ ...p, when: e.target.value }))
                     }
-                    placeholder="When (due date/time)"
-                    className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
                   />
-                  <input
-                    type="text"
-                    value={taskFields.where}
-                    onChange={(e) =>
-                      setTaskFields((p) => ({ ...p, where: e.target.value }))
-                    }
-                    placeholder="Where (location, optional)"
-                    className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                  />
+                  {/* WHERE - text + map pin */}
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      value={taskFields.where}
+                      onChange={(e) =>
+                        setTaskFields((p) => ({ ...p, where: e.target.value }))
+                      }
+                      placeholder="Where (location, optional)"
+                      className="flex-1 px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTaskMapPicker(true)}
+                      className="px-2 py-1.5 text-xs rounded-lg bg-stone-700 hover:bg-stone-600 border border-stone-600 text-amber-400"
+                      title="Pick on map"
+                    >
+                      📍
+                    </button>
+                  </div>
+                  {taskLocationLat && taskLocationLng && (
+                    <p className="text-xs text-amber-400 mt-0.5">
+                      📍 Location pinned
+                    </p>
+                  )}
+                  {showTaskMapPicker && (
+                    <MapPickerModal
+                      open={showTaskMapPicker}
+                      initialAddress={taskFields.where}
+                      onClose={() => setShowTaskMapPicker(false)}
+                      onConfirm={(loc) => {
+                        setTaskFields((p) => ({ ...p, where: loc.address }));
+                        setTaskLocationLat(loc.lat || undefined);
+                        setTaskLocationLng(loc.lng || undefined);
+                        setShowTaskMapPicker(false);
+                      }}
+                    />
+                  )}
                   <textarea
                     value={taskFields.why}
                     onChange={(e) =>
@@ -2561,12 +2638,14 @@ export default function ChatArea({
                                 .filter(Boolean)
                             : [],
                           what: taskFields.what,
-                          when: taskFields.when || "today",
+                          when: taskFields.when || new Date().toISOString(),
                           where: taskFields.where,
                           why: taskFields.why,
                           status: "pending",
                           createdAt: new Date().toISOString(),
                           sourceChat: true,
+                          locationLat: taskLocationLat,
+                          locationLng: taskLocationLng,
                         });
                         localStorage.setItem(
                           "saarathi_activities",
@@ -2584,6 +2663,9 @@ export default function ChatArea({
                         where: "",
                         why: "",
                       });
+                      setWhoOther("");
+                      setTaskLocationLat(undefined);
+                      setTaskLocationLng(undefined);
                       toast.success("Task created");
                     }}
                     className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors"
