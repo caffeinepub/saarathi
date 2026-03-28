@@ -21,7 +21,8 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { useActor } from "../hooks/useActor";
+import { createActorWithConfig } from "../config";
+import { useAuth } from "../context/AuthContext";
 import { asExtended } from "../utils/backendExtensions";
 
 interface Contact {
@@ -108,7 +109,7 @@ function loadContacts(): Contact[] {
 }
 
 export default function SettingsPage() {
-  const { actor } = useActor();
+  const { identity } = useAuth();
   const [profile, setProfile] = useState(loadProfile);
   const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>(loadNotifPrefs);
   const [language, setLanguage] = useState<"en" | "hi">(() => {
@@ -280,23 +281,22 @@ export default function SettingsPage() {
 
       // Step 2: query backend canister for cross-device lookup
       try {
-        if (actor) {
-          const allUsers = await asExtended(actor).getAllPublicUsers();
-          const match = allUsers.find(
-            (u) => u.username.toLowerCase() === query,
-          );
-          if (match) {
-            if (match.username.toLowerCase() === currentUsername) {
-              setFindError("That's your own account.");
-              return;
-            }
-            setFoundUser({
-              username: match.username,
-              displayName: match.displayName,
-              businessName: "",
-            });
+        const searchActor = await createActorWithConfig(
+          identity ? { agentOptions: { identity } } : undefined,
+        );
+        const allUsers = await asExtended(searchActor).getAllPublicUsers();
+        const match = allUsers.find((u) => u.username.toLowerCase() === query);
+        if (match) {
+          if (match.username.toLowerCase() === currentUsername) {
+            setFindError("That's your own account.");
             return;
           }
+          setFoundUser({
+            username: match.username,
+            displayName: match.displayName,
+            businessName: "",
+          });
+          return;
         }
       } catch {
         // canister unavailable — fall through to not-found
