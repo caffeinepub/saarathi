@@ -99,17 +99,12 @@ async function maybeLoadMockBackend(): Promise<backendInterface | null> {
   }
 
   try {
-    // If VITE_USE_MOCK is enabled, try to load a mock backend module *if it exists*.
-    // We use import.meta.glob so builds don't fail when the mock file is absent.
     const mockModules = import.meta.glob("./mocks/backend.{ts,tsx,js,jsx}");
-
     const path = Object.keys(mockModules)[0];
     if (!path) return null;
-
     const mod = (await mockModules[path]()) as {
       mockBackend?: backendInterface;
     };
-
     return mod.mockBackend ?? null;
   } catch {
     return null;
@@ -119,16 +114,16 @@ async function maybeLoadMockBackend(): Promise<backendInterface | null> {
 export async function createActorWithConfig(
   options?: CreateActorOptions,
 ): Promise<backendInterface> {
-  // Attempt to load mock backend if enabled
   const mock = await maybeLoadMockBackend();
   if (mock) {
     return mock;
   }
 
   const config = await loadConfig();
-  const resolvedOptions = options ?? {};
+  // Destructure agentOptions out so it is never passed alongside `agent`
+  const { agentOptions, ...restOptions } = options ?? {};
   const agent = new HttpAgent({
-    ...resolvedOptions.agentOptions,
+    ...agentOptions,
     host: config.backend_host,
   });
   if (config.backend_host?.includes("localhost")) {
@@ -139,9 +134,10 @@ export async function createActorWithConfig(
       console.error(err);
     });
   }
+  // Only pass `agent` — never pass `agentOptions` to createActor
   const actorOptions = {
-    ...resolvedOptions,
-    agent: agent,
+    ...restOptions,
+    agent,
     processError,
   };
 
