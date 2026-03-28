@@ -1,72 +1,42 @@
 # SAARATHI
 
 ## Current State
+Full-stack app with Motoko backend. Phase 3 migration moved all business data (clients, products, invoices/docs, activities) to the backend canister. However, `ChatArea.tsx` still reads from **localStorage** (`saarathi_business_docs`, `saarathi_clients`, `saarathi_products`) which are now empty — causing the AI invoice card to always default to ₹10,000 regardless of what is typed in chat.
 
-The app has mock/demo data scattered across multiple files:
-
-- **Messenger** (`sampleData.ts`): `SAMPLE_USERS`, `makeSampleGroups()`, `makeSampleMessages()` — demo groups (Sales Team, North Zone, Operations, Finance & GST) and DM conversations with Priya, Rajesh, Ravi, Meena, Ankit, Sunita.
-- **Activities** (`ActivitiesPage.tsx`): `_INITIAL_ACTIVITIES` — 4 hardcoded demo activities (GST Filing, Monthly Sales Review, Client Site Visit, Vendor Reconciliation), all with `isDemo: true`.
-- **Business Suite** (`BusinessSuitePage.tsx`): `_INITIAL_CLIENTS` (3 clients), `_INITIAL_PRODUCTS` (4 products), `_INITIAL_DOCS` (3 docs: 1 invoice + 1 estimate + 1 proposal).
-- **Settings** (`SettingsPage.tsx`): `DEMO_CONTACT_IDS` for 4 demo contacts.
-
-The onboarding flow is a 4-step tooltip/modal walkthrough shown on first login.
+`MessengerPage.tsx` fetches groups and DM contacts from backend but does NOT fetch or pass clients/docs/products to `ChatArea`.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Fresh, coherent mock data set for first-time user welcome training — all data should tell a consistent story about a single Indian small business (e.g. "Tattva Traders", a small trading/consulting firm in Maharashtra), making it feel realistic and immediately useful for training.
-- New mock data should be clearly labeled `isDemo: true` and seeded only when `saarathi_demo_cleared` is NOT set.
-- Onboarding flow should reference the new mock data scenario so the training context is clear.
+- `cachedClients: CanisterClient[]`, `cachedDocs: CanisterBusinessDoc[]`, `cachedProducts: CanisterProduct[]` state in `MessengerPage` — fetched from backend on actor ready
+- Callbacks `onSaveDoc`, `onSaveClient`, `onSaveProduct` passed from `MessengerPage` to `ChatArea` for all inline create/save operations
+- Amount detection in `computeAutoInvoice` to also scan the full chat context (last 10 messages), not just one message
+- Regex to detect amounts like `35000`, `35,000`, `35k`, `₹35000` from recent chat messages
 
 ### Modify
-- Replace ALL existing mock data in `sampleData.ts` (SAMPLE_USERS, makeSampleGroups, makeSampleMessages) with new, richer, contextually coherent data.
-- Replace `_INITIAL_ACTIVITIES` in `ActivitiesPage.tsx` with fresh activities aligned to the new business scenario.
-- Replace `_INITIAL_CLIENTS`, `_INITIAL_PRODUCTS`, `_INITIAL_DOCS` in `BusinessSuitePage.tsx` with fresh business data aligned to the new scenario.
-- Replace `DEMO_CONTACT_IDS` in `SettingsPage.tsx` to match new demo contacts.
-- Update onboarding step descriptions to reflect the new demo scenario.
+- `MessengerPage.tsx`: after actor loads, also call `ext.listMyClients()`, `ext.listMyDocs()`, `ext.listMyProducts()` and store in state; pass all three as props to `<ChatArea>`
+- `ChatArea.tsx` Props interface: add `cachedClients`, `cachedDocs`, `cachedProducts`, `onSaveDoc`, `onSaveClient`, `onSaveProduct`
+- `DocPickerPanel` (lines ~100–120): use `cachedDocs` and `cachedClients` props instead of localStorage reads
+- `computeAutoInvoice`: use `cachedClients` and `cachedDocs` props for client/invoice lookup; use full chat context (last 10 messages) for amount detection; improve amount regex
+- All inline doc/client/product SAVE operations in `ChatArea` (lines ~2592–3366): call `onSaveDoc`, `onSaveClient`, `onSaveProduct` callbacks instead of writing directly to localStorage
+- `MessengerPage` Today Summary Strip: fetch unpaid invoice total from `cachedDocs` instead of localStorage
 
 ### Remove
-- Old mock data: old clients (Innovate Solutions, Green Valley, Patel Enterprises), old products (Software Consulting, Office Furniture, Printed Stationery, AMC), old invoices (INV-001/EST-001/PRO-001 with old clients), old activities (a1/a2/a3/a4), old demo users (priya/rajesh/meena/ankit/sunita/ravi), old groups (Sales Team/North Zone/Operations/Finance & GST), old demo messages.
+- All direct `localStorage.getItem('saarathi_business_docs')` / `localStorage.setItem('saarathi_business_docs')` calls in `ChatArea.tsx`
+- All direct `localStorage.getItem('saarathi_clients')` / `localStorage.setItem('saarathi_clients')` calls in `ChatArea.tsx`
+- All direct `localStorage.getItem('saarathi_products')` / `localStorage.setItem('saarathi_products')` calls in `ChatArea.tsx`
 
 ## Implementation Plan
+1. `MessengerPage.tsx`:
+   - Add `cachedClients`, `cachedDocs`, `cachedProducts` state
+   - In the existing `loadBackendData` useEffect, also fetch `ext.listMyClients()`, `ext.listMyDocs()`, `ext.listMyProducts()` in the same `Promise.all`
+   - Add callbacks: `handleSaveDoc` (calls `ext.createDoc` or `ext.updateDoc`), `handleSaveClient` (calls `ext.createClient`), `handleSaveProduct` (calls `ext.createProduct`)
+   - Pass all to `<ChatArea>` as props
+   - Fix the Today Summary amount calculation to use `cachedDocs` instead of localStorage
 
-### New Demo Scenario: "Tattva Traders" — a small import/export & consulting firm in Pune, Maharashtra
-
-Demo users:
-- Kavya Nair (kavya.nair) — Sales Manager
-- Suresh Mehta (suresh.mehta) — Accounts
-- Deepika Joshi (deepika.joshi) — Operations
-- Arjun Singh (arjun.singh) — Field Executive
-
-Demo groups:
-- "Tattva Traders Team" (main group, all members)
-- "Accounts & GST" (subgroup of main, Suresh + current user)
-- "Client Projects" (top-level, Kavya + Arjun + current user)
-
-Demo DMs: Kavya, Suresh, Arjun
-
-Demo messages tell a coherent story: follow-up on a new client proposal, GST filing reminder, payment collection, field visit coordination.
-
-Demo activities:
-1. GST Return Filing — Q4 (due in 3 days, pending) — linked to Accounts & GST
-2. Follow-up Call — Verma Industries (due tomorrow, pending) — linked to Kavya DM
-3. Send Revised Proposal — Kapoor Exports (accepted, in progress)
-4. Collect Advance Payment — New Client (pending)
-
-Demo clients:
-1. Verma Industries — Nagpur, Maharashtra
-2. Kapoor Exports — Surat, Gujarat
-3. Bharat Tech Solutions — Pune, Maharashtra
-
-Demo products:
-1. Export Consulting (service) — ₹3,500/hr — 18% GST
-2. Import Documentation — ₹8,000/set — 18% GST
-3. Business Registration — ₹12,000/set — 18% GST
-4. Annual Compliance Package — ₹45,000/yr — 18% GST
-
-Demo docs:
-1. INV-001 — Verma Industries — ₹35,000 — sent, due in 10 days
-2. EST-001 — Kapoor Exports — ₹96,000 estimate — draft
-3. PRO-001 — Bharat Tech Solutions — Annual Compliance — proposal
-
-Onboarding text updated to reference "See how Tattva Traders uses SAARATHI" to ground the user in the demo scenario.
+2. `ChatArea.tsx`:
+   - Extend the `Props` interface with `cachedClients`, `cachedDocs`, `cachedProducts`, `onSaveDoc`, `onSaveClient`, `onSaveProduct`
+   - In `DocPickerPanel`: use `cachedDocs` / `cachedClients` props
+   - In `computeAutoInvoice(msgText)`: use `cachedClients` to find client by name; use `cachedDocs` to find last invoice for client; improve amount regex to scan `messages.slice(-10)` joined text; detect `₹35000`, `35000`, `35k`, `35,000 rs` patterns
+   - In all inline doc-creation blocks (~3 places in ChatArea): replace `localStorage.getItem/setItem('saarathi_business_docs')` with `onSaveDoc(...)` callback; similarly for clients/products
+   - Keep localStorage only for commitments (saarathi_commitments) which is UI-local state

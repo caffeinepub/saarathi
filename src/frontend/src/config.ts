@@ -139,9 +139,8 @@ export async function createActorWithConfig(
       console.error(err);
     });
   }
-  const { agentOptions: _ignoredAgentOptions, ...restOptions } = resolvedOptions;
   const actorOptions = {
-    ...restOptions,
+    ...resolvedOptions,
     agent: agent,
     processError,
   };

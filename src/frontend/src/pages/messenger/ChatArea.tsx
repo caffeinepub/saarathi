@@ -29,6 +29,11 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type {
+  CanisterBusinessDoc,
+  CanisterClient,
+  CanisterProduct,
+} from "../../utils/backendExtensions";
 import { getAvatarColor } from "./sampleData";
 import type {
   BusinessDocPayload,
@@ -92,10 +97,14 @@ function ShareBusinessDocModal({
   open,
   onClose,
   onSend,
+  cachedDocs: cachedDocsFromParent,
+  cachedClients: cachedClientsFromParent,
 }: {
   open: boolean;
   onClose: () => void;
   onSend: (payload: BusinessDocPayload) => void;
+  cachedDocs?: CanisterBusinessDoc[];
+  cachedClients?: CanisterClient[];
 }) {
   const [docs, setDocs] = useState<StoredDoc[]>([]);
   const [clients, setClients] = useState<StoredClient[]>([]);
@@ -103,19 +112,51 @@ function ShareBusinessDocModal({
 
   useEffect(() => {
     if (!open) return;
-    try {
-      const rawDocs = localStorage.getItem("saarathi_business_docs");
-      if (rawDocs) setDocs(JSON.parse(rawDocs));
-      else setDocs([]);
-      const rawClients = localStorage.getItem("saarathi_clients");
-      if (rawClients) setClients(JSON.parse(rawClients));
-      else setClients([]);
-    } catch {
-      setDocs([]);
-      setClients([]);
+    // Use canister data if available, else fall back to localStorage
+    if (cachedDocsFromParent && cachedDocsFromParent.length > 0) {
+      setDocs(
+        cachedDocsFromParent.map((d) => ({
+          id: d.id,
+          type: ("invoice" in d.docType
+            ? "invoice"
+            : "estimate" in d.docType
+              ? "estimate"
+              : "proposal") as "invoice" | "estimate" | "proposal",
+          number: d.number,
+          date: d.date,
+          clientId: d.clientId,
+          status:
+            "paid" in d.status ? "paid" : "sent" in d.status ? "sent" : "draft",
+          lineItems: d.lineItems.map((li) => ({
+            qty: li.qty,
+            rate: li.rate,
+            gstRate: li.gstRate,
+          })),
+        })),
+      );
+      setClients(
+        (cachedClientsFromParent ?? []).map((c) => ({
+          id: c.id,
+          name: c.name,
+          state: c.state,
+          placeOfSupply: c.placeOfSupply,
+        })),
+      );
+    } else {
+      try {
+        const rawDocs = localStorage.getItem("saarathi_business_docs");
+        if (rawDocs) setDocs(JSON.parse(rawDocs));
+        else setDocs([]);
+        const rawClients = localStorage.getItem("saarathi_clients");
+        if (rawClients) setClients(JSON.parse(rawClients));
+        else setClients([]);
+      } catch {
+        setDocs([]);
+        setClients([]);
+      }
     }
     setSelected(null);
-  }, [open]);
+  }, [open, cachedDocsFromParent, cachedClientsFromParent]);
 
   const selectedDoc = docs.find((d) => d.id === selected);
 
@@ -1297,6 +1338,32 @@ interface Props {
   onBack: () => void;
   isMobile: boolean;
   onNavigate?: (page: string) => void;
+  cachedClients?: CanisterClient[];
+  cachedDocs?: CanisterBusinessDoc[];
+  cachedProducts?: CanisterProduct[];
+  onSaveClient?: (name: string) => Promise<string>;
+  onSaveProduct?: (
+    name: string,
+    price: number,
+    gstRate: number,
+  ) => Promise<string>;
+  onSaveDoc?: (
+    docType: string,
+    clientId: string,
+    lineItems: Array<{
+      productId: string;
+      description: string;
+      hsnSac: string;
+      qty: number;
+      unit: string;
+      rate: number;
+      gstRate: number;
+    }>,
+    date: string,
+    dueDate: string,
+    notes: string,
+    linkedChatId: string,
+  ) => Promise<string>;
 }
 
 // ──────────────────────────────────────────────────────────
@@ -1549,6 +1616,12 @@ export default function ChatArea({
   onBack,
   isMobile,
   onNavigate,
+  cachedClients,
+  cachedDocs,
+  cachedProducts: _cachedProducts,
+  onSaveClient,
+  onSaveProduct,
+  onSaveDoc,
 }: Props) {
   const [text, setText] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -2373,6 +2446,8 @@ export default function ChatArea({
         onSend={(payload) => {
           onSendBusinessDoc(payload);
         }}
+        cachedDocs={cachedDocs}
+        cachedClients={cachedClients}
       />
       <RequestChangeDrawer
         msg={requestChangeMsg}
@@ -2585,58 +2660,106 @@ export default function ChatArea({
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (!proposalFields.client.trim()) return;
-                      try {
-                        const docs = JSON.parse(
-                          localStorage.getItem("saarathi_business_docs") ||
-                            "[]",
-                        );
-                        const propNum = `PROP-${String(docs.filter((d: { type: string }) => d.type === "proposal").length + 1).padStart(3, "0")}`;
-                        const storedClients = JSON.parse(
-                          localStorage.getItem("saarathi_clients") || "[]",
-                        );
-                        let clientId = storedClients.find(
-                          (c: { name: string }) =>
-                            c.name === proposalFields.client,
-                        )?.id;
-                        if (!clientId) {
-                          clientId = `client_prop_${Date.now()}`;
-                          storedClients.push({
-                            id: clientId,
-                            name: proposalFields.client,
-                          });
-                          localStorage.setItem(
-                            "saarathi_clients",
-                            JSON.stringify(storedClients),
-                          );
+                      const today = new Date().toISOString().slice(0, 10);
+                      const currentChatKey = currentChat
+                        ? currentChat.type === "group"
+                          ? `group_${(currentChat as { groupId: string }).groupId}`
+                          : `dm_${(currentChat as { userId: string }).userId}`
+                        : "";
+                      // Find or create client
+                      const activeClients2 =
+                        cachedClients && cachedClients.length > 0
+                          ? cachedClients
+                          : (() => {
+                              try {
+                                return JSON.parse(
+                                  localStorage.getItem("saarathi_clients") ||
+                                    "[]",
+                                );
+                              } catch {
+                                return [];
+                              }
+                            })();
+                      let clientId = activeClients2.find(
+                        (c: { name: string }) =>
+                          c.name === proposalFields.client,
+                      )?.id;
+                      if (!clientId) {
+                        clientId = onSaveClient
+                          ? await onSaveClient(proposalFields.client)
+                          : `client_prop_${Date.now()}`;
+                        if (!onSaveClient) {
+                          try {
+                            const cl = JSON.parse(
+                              localStorage.getItem("saarathi_clients") || "[]",
+                            );
+                            cl.push({
+                              id: clientId,
+                              name: proposalFields.client,
+                            });
+                            localStorage.setItem(
+                              "saarathi_clients",
+                              JSON.stringify(cl),
+                            );
+                          } catch {}
                         }
-                        docs.push({
-                          id: `prop_${Date.now()}`,
-                          type: "proposal",
-                          number: propNum,
-                          date: new Date().toISOString().slice(0, 10),
-                          clientId,
-                          status: "draft",
-                          notes: proposalFields.title,
-                          lineItems: [
+                      }
+                      if (onSaveDoc) {
+                        await onSaveDoc(
+                          "proposal",
+                          clientId || "",
+                          [
                             {
-                              id: "1",
+                              productId: "",
                               description: proposalFields.title || "Services",
+                              hsnSac: "",
                               qty: 1,
+                              unit: "nos",
                               rate: proposalFields.amount,
                               gstRate: 18,
                             },
                           ],
-                        });
-                        localStorage.setItem(
-                          "saarathi_business_docs",
-                          JSON.stringify(docs),
+                          today,
+                          today,
+                          proposalFields.title,
+                          currentChatKey,
                         );
-                        window.dispatchEvent(
-                          new CustomEvent("saarathi:docs-updated"),
-                        );
-                      } catch {}
+                      } else {
+                        try {
+                          const docs = JSON.parse(
+                            localStorage.getItem("saarathi_business_docs") ||
+                              "[]",
+                          );
+                          const propNum = `PROP-${String(docs.filter((d: { type: string }) => d.type === "proposal").length + 1).padStart(3, "0")}`;
+                          docs.push({
+                            id: `prop_${Date.now()}`,
+                            type: "proposal",
+                            number: propNum,
+                            date: today,
+                            clientId: clientId || "",
+                            status: "draft",
+                            notes: proposalFields.title,
+                            lineItems: [
+                              {
+                                id: "1",
+                                description: proposalFields.title || "Services",
+                                qty: 1,
+                                rate: proposalFields.amount,
+                                gstRate: 18,
+                              },
+                            ],
+                          });
+                          localStorage.setItem(
+                            "saarathi_business_docs",
+                            JSON.stringify(docs),
+                          );
+                          window.dispatchEvent(
+                            new CustomEvent("saarathi:docs-updated"),
+                          );
+                        } catch {}
+                      }
                       onSendMessage(
                         `📋 Proposal ${proposalFields.title ? `"${proposalFields.title}" ` : ""}sent to ${proposalFields.client}`,
                       );
@@ -2758,72 +2881,125 @@ export default function ChatArea({
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      try {
-                        const storedDocs2 = JSON.parse(
-                          localStorage.getItem("saarathi_business_docs") ||
-                            "[]",
-                        );
-                        const storedClients2 = JSON.parse(
-                          localStorage.getItem("saarathi_clients") || "[]",
-                        );
-                        let clientId2 = storedClients2.find(
-                          (c: { name: string; id: string }) =>
-                            c.name === autoInvoiceData.client,
-                        )?.id;
-                        if (!clientId2) {
-                          clientId2 = `client_auto_${Date.now()}`;
-                          storedClients2.push({
-                            id: clientId2,
-                            name: autoInvoiceData.client,
-                            state: "Maharashtra",
-                            placeOfSupply: "Maharashtra",
-                            phone: "",
-                            email: "",
-                            gstin: "",
-                            address: "",
-                          });
-                          localStorage.setItem(
-                            "saarathi_clients",
-                            JSON.stringify(storedClients2),
-                          );
+                    onClick={async () => {
+                      if (!autoInvoiceData) return;
+                      const today = new Date().toISOString().slice(0, 10);
+                      const dueDate = new Date(
+                        Date.now() + 30 * 24 * 60 * 60 * 1000,
+                      )
+                        .toISOString()
+                        .slice(0, 10);
+                      const currentChatKey = currentChat
+                        ? currentChat.type === "group"
+                          ? `group_${(currentChat as { groupId: string }).groupId}`
+                          : `dm_${(currentChat as { userId: string }).userId}`
+                        : "";
+                      const activeClients3 =
+                        cachedClients && cachedClients.length > 0
+                          ? cachedClients
+                          : (() => {
+                              try {
+                                return JSON.parse(
+                                  localStorage.getItem("saarathi_clients") ||
+                                    "[]",
+                                );
+                              } catch {
+                                return [];
+                              }
+                            })();
+                      let clientId2 = activeClients3.find(
+                        (c: { name: string }) =>
+                          c.name === autoInvoiceData.client,
+                      )?.id;
+                      if (!clientId2) {
+                        clientId2 = onSaveClient
+                          ? await onSaveClient(autoInvoiceData.client)
+                          : `client_auto_${Date.now()}`;
+                        if (!onSaveClient) {
+                          try {
+                            const cl2 = JSON.parse(
+                              localStorage.getItem("saarathi_clients") || "[]",
+                            );
+                            cl2.push({
+                              id: clientId2,
+                              name: autoInvoiceData.client,
+                              state: "Maharashtra",
+                              placeOfSupply: "Maharashtra",
+                              phone: "",
+                              email: "",
+                              gstin: "",
+                              address: "",
+                            });
+                            localStorage.setItem(
+                              "saarathi_clients",
+                              JSON.stringify(cl2),
+                            );
+                          } catch {}
                         }
-                        const invNum = `INV-${String(storedDocs2.filter((d: { type: string }) => d.type === "invoice").length + 1).padStart(3, "0")}`;
-                        const newInv = {
-                          id: `inv_auto_${Date.now()}`,
-                          type: "invoice",
-                          number: invNum,
-                          date: new Date().toISOString().slice(0, 10),
-                          dueDate: new Date(
-                            Date.now() + 30 * 24 * 60 * 60 * 1000,
-                          )
-                            .toISOString()
-                            .slice(0, 10),
-                          clientId: clientId2,
-                          status: "sent",
-                          notes: "",
-                          lineItems: [
+                      }
+                      let invNum = "INV-001";
+                      if (onSaveDoc) {
+                        await onSaveDoc(
+                          "invoice",
+                          clientId2 || "",
+                          [
                             {
-                              id: "1",
+                              productId: "",
                               description: "Services",
+                              hsnSac: "",
                               qty: 1,
+                              unit: "nos",
                               rate: autoInvoiceData.amount,
                               gstRate: 18,
                             },
                           ],
-                        };
-                        storedDocs2.push(newInv);
-                        localStorage.setItem(
-                          "saarathi_business_docs",
-                          JSON.stringify(storedDocs2),
+                          today,
+                          dueDate,
+                          "",
+                          currentChatKey,
                         );
-                        window.dispatchEvent(
-                          new CustomEvent("saarathi:docs-updated"),
+                        const newDocs = (cachedDocs ?? []).filter(
+                          (d) => "invoice" in d.docType,
                         );
-                        onSendMessage(
-                          `📄 Invoice ${invNum} sent to ${autoInvoiceData.client}`,
-                        );
-                      } catch {}
+                        invNum = `INV-${String(newDocs.length).padStart(3, "0")}`;
+                      } else {
+                        try {
+                          const d2 = JSON.parse(
+                            localStorage.getItem("saarathi_business_docs") ||
+                              "[]",
+                          );
+                          invNum = `INV-${String(d2.filter((d: { type: string }) => d.type === "invoice").length + 1).padStart(3, "0")}`;
+                          d2.push({
+                            id: `inv_auto_${Date.now()}`,
+                            type: "invoice",
+                            number: invNum,
+                            date: today,
+                            dueDate,
+                            clientId: clientId2 || "",
+                            status: "sent",
+                            notes: "",
+                            lineItems: [
+                              {
+                                id: "1",
+                                description: "Services",
+                                qty: 1,
+                                rate: autoInvoiceData.amount,
+                                gstRate: 18,
+                              },
+                            ],
+                          });
+                          localStorage.setItem(
+                            "saarathi_business_docs",
+                            JSON.stringify(d2),
+                          );
+                          window.dispatchEvent(
+                            new CustomEvent("saarathi:docs-updated"),
+                          );
+                        } catch {}
+                      }
+                      onSendMessage(
+                        `📄 Invoice ${invNum} sent to ${autoInvoiceData.client}`,
+                      );
                       setShowAutoInvoice(false);
                       toast.success("Invoice created and sent");
                     }}
@@ -2858,16 +3034,20 @@ export default function ChatArea({
                       <div className="space-y-1">
                         <span className="text-xs text-stone-400">Client</span>
                         {(() => {
-                          const storedClients = (() => {
-                            try {
-                              return JSON.parse(
-                                localStorage.getItem("saarathi_clients") ||
-                                  "[]",
-                              );
-                            } catch {
-                              return [];
-                            }
-                          })();
+                          const clientList =
+                            cachedClients && cachedClients.length > 0
+                              ? cachedClients
+                              : (() => {
+                                  try {
+                                    return JSON.parse(
+                                      localStorage.getItem(
+                                        "saarathi_clients",
+                                      ) || "[]",
+                                    );
+                                  } catch {
+                                    return [];
+                                  }
+                                })();
                           return (
                             <select
                               value={invFormClient}
@@ -2882,7 +3062,7 @@ export default function ChatArea({
                               className="w-full px-2 py-1.5 text-xs rounded-lg bg-stone-800 border border-stone-600 text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
                             >
                               <option value="">-- Select Client --</option>
-                              {storedClients.map(
+                              {clientList.map(
                                 (c: { id: string; name: string }) => (
                                   <option key={c.id} value={c.name}>
                                     {c.name}
@@ -2917,32 +3097,36 @@ export default function ChatArea({
                             <div className="flex gap-1">
                               <button
                                 type="button"
-                                onClick={() => {
+                                onClick={async () => {
                                   if (!newClientName.trim()) return;
-                                  try {
-                                    const clients = JSON.parse(
-                                      localStorage.getItem(
+                                  if (onSaveClient) {
+                                    await onSaveClient(newClientName.trim());
+                                  } else {
+                                    try {
+                                      const clients = JSON.parse(
+                                        localStorage.getItem(
+                                          "saarathi_clients",
+                                        ) || "[]",
+                                      );
+                                      clients.push({
+                                        id: `client_${Date.now()}`,
+                                        name: newClientName.trim(),
+                                        phone: newClientPhone.trim(),
+                                        email: "",
+                                        gstin: "",
+                                        address: "",
+                                      });
+                                      localStorage.setItem(
                                         "saarathi_clients",
-                                      ) || "[]",
-                                    );
-                                    clients.push({
-                                      id: `client_${Date.now()}`,
-                                      name: newClientName.trim(),
-                                      phone: newClientPhone.trim(),
-                                      email: "",
-                                      gstin: "",
-                                      address: "",
-                                    });
-                                    localStorage.setItem(
-                                      "saarathi_clients",
-                                      JSON.stringify(clients),
-                                    );
-                                    window.dispatchEvent(
-                                      new CustomEvent(
-                                        "saarathi:clients-updated",
-                                      ),
-                                    );
-                                  } catch {}
+                                        JSON.stringify(clients),
+                                      );
+                                      window.dispatchEvent(
+                                        new CustomEvent(
+                                          "saarathi:clients-updated",
+                                        ),
+                                      );
+                                    } catch {}
+                                  }
                                   setInvFormClient(newClientName.trim());
                                   setNewClientName("");
                                   setNewClientPhone("");
@@ -3225,41 +3409,50 @@ export default function ChatArea({
                           <div className="flex gap-1">
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 if (!newProductName.trim()) return;
-                                try {
-                                  const products = JSON.parse(
-                                    localStorage.getItem("saarathi_products") ||
-                                      "[]",
+                                if (onSaveProduct) {
+                                  await onSaveProduct(
+                                    newProductName.trim(),
+                                    newProductRate,
+                                    newProductGst,
                                   );
-                                  products.push({
-                                    id: `prod_${Date.now()}`,
-                                    name: newProductName.trim(),
-                                    price: newProductRate,
-                                    gstRate: newProductGst,
-                                    unit: "nos",
-                                    description: "",
-                                  });
-                                  localStorage.setItem(
-                                    "saarathi_products",
-                                    JSON.stringify(products),
-                                  );
-                                  window.dispatchEvent(
-                                    new CustomEvent(
-                                      "saarathi:products-updated",
-                                    ),
-                                  );
-                                  setInvFormLineItems((prev) => [
-                                    ...prev,
-                                    {
-                                      id: `li_${Date.now()}`,
-                                      description: newProductName.trim(),
-                                      qty: 1,
-                                      rate: newProductRate,
+                                } else {
+                                  try {
+                                    const products = JSON.parse(
+                                      localStorage.getItem(
+                                        "saarathi_products",
+                                      ) || "[]",
+                                    );
+                                    products.push({
+                                      id: `prod_${Date.now()}`,
+                                      name: newProductName.trim(),
+                                      price: newProductRate,
                                       gstRate: newProductGst,
-                                    },
-                                  ]);
-                                } catch {}
+                                      unit: "nos",
+                                      description: "",
+                                    });
+                                    localStorage.setItem(
+                                      "saarathi_products",
+                                      JSON.stringify(products),
+                                    );
+                                    window.dispatchEvent(
+                                      new CustomEvent(
+                                        "saarathi:products-updated",
+                                      ),
+                                    );
+                                  } catch {}
+                                }
+                                setInvFormLineItems((prev) => [
+                                  ...prev,
+                                  {
+                                    id: `li_${Date.now()}`,
+                                    description: newProductName.trim(),
+                                    qty: 1,
+                                    rate: newProductRate,
+                                    gstRate: newProductGst,
+                                  },
+                                ]);
                                 setNewProductName("");
                                 setNewProductRate(0);
                                 setNewProductGst(18);
@@ -3303,76 +3496,129 @@ export default function ChatArea({
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          try {
-                            const storedDocs3 = JSON.parse(
-                              localStorage.getItem("saarathi_business_docs") ||
-                                "[]",
+                        onClick={async () => {
+                          const currentChatKey = currentChat
+                            ? currentChat.type === "group"
+                              ? `group_${(currentChat as { groupId: string }).groupId}`
+                              : `dm_${(currentChat as { userId: string }).userId}`
+                            : "";
+                          const activeClients4 =
+                            cachedClients && cachedClients.length > 0
+                              ? cachedClients
+                              : (() => {
+                                  try {
+                                    return JSON.parse(
+                                      localStorage.getItem(
+                                        "saarathi_clients",
+                                      ) || "[]",
+                                    );
+                                  } catch {
+                                    return [];
+                                  }
+                                })();
+                          let clientId3 = activeClients4.find(
+                            (c: { name: string }) => c.name === invFormClient,
+                          )?.id;
+                          if (!clientId3 && invFormClient) {
+                            clientId3 = onSaveClient
+                              ? await onSaveClient(invFormClient)
+                              : `client_auto_${Date.now()}`;
+                            if (!onSaveClient) {
+                              try {
+                                const cl3 = JSON.parse(
+                                  localStorage.getItem("saarathi_clients") ||
+                                    "[]",
+                                );
+                                cl3.push({
+                                  id: clientId3,
+                                  name: invFormClient,
+                                  phone: "",
+                                  email: "",
+                                  gstin: "",
+                                  address: "",
+                                });
+                                localStorage.setItem(
+                                  "saarathi_clients",
+                                  JSON.stringify(cl3),
+                                );
+                              } catch {}
+                            }
+                          }
+                          const lineItemsToSave =
+                            invFormLineItems.length > 0
+                              ? invFormLineItems.map((li) => ({
+                                  productId: "",
+                                  description: li.description || invFormDesc,
+                                  hsnSac: "",
+                                  qty: li.qty,
+                                  unit: "nos",
+                                  rate: li.rate,
+                                  gstRate: li.gstRate,
+                                }))
+                              : [
+                                  {
+                                    productId: "",
+                                    description: invFormDesc,
+                                    hsnSac: "",
+                                    qty: 1,
+                                    unit: "nos",
+                                    rate:
+                                      invFormAmount / (1 + invFormGst / 100),
+                                    gstRate: invFormGst,
+                                  },
+                                ];
+                          let invNum2 = "INV-001";
+                          if (onSaveDoc) {
+                            await onSaveDoc(
+                              "invoice",
+                              clientId3 || "",
+                              lineItemsToSave,
+                              invFormDate,
+                              invFormDate,
+                              invFormDesc,
+                              currentChatKey,
                             );
-                            const storedClients3 = JSON.parse(
-                              localStorage.getItem("saarathi_clients") || "[]",
+                            const newDocs2 = (cachedDocs ?? []).filter(
+                              (d) => "invoice" in d.docType,
                             );
-                            let clientId3 = storedClients3.find(
-                              (c: { name: string; id: string }) =>
-                                c.name === invFormClient,
-                            )?.id;
-                            if (!clientId3 && invFormClient) {
-                              clientId3 = `client_auto_${Date.now()}`;
-                              storedClients3.push({
-                                id: clientId3,
-                                name: invFormClient,
-                                phone: "",
-                                email: "",
-                                gstin: "",
-                                address: "",
+                            invNum2 = `INV-${String(newDocs2.length).padStart(3, "0")}`;
+                          } else {
+                            try {
+                              const d3 = JSON.parse(
+                                localStorage.getItem(
+                                  "saarathi_business_docs",
+                                ) || "[]",
+                              );
+                              invNum2 = `INV-${String(d3.filter((d: { type: string }) => d.type === "invoice").length + 1).padStart(3, "0")}`;
+                              d3.push({
+                                id: `inv_edit_${Date.now()}`,
+                                type: "invoice",
+                                number: invNum2,
+                                date: invFormDate,
+                                dueDate: invFormDate,
+                                clientId: clientId3 || "",
+                                status: "sent",
+                                notes: invFormDesc,
+                                lineItems: lineItemsToSave.map((li, i) => ({
+                                  id: `li${i}`,
+                                  description: li.description,
+                                  qty: li.qty,
+                                  rate: li.rate,
+                                  gstRate: li.gstRate,
+                                })),
                               });
                               localStorage.setItem(
-                                "saarathi_clients",
-                                JSON.stringify(storedClients3),
+                                "saarathi_business_docs",
+                                JSON.stringify(d3),
                               );
-                            }
-                            const invNum2 = `INV-${String(storedDocs3.filter((d: { type: string }) => d.type === "invoice").length + 1).padStart(3, "0")}`;
-                            const lineItemsToSave =
-                              invFormLineItems.length > 0
-                                ? invFormLineItems.map((li) => ({
-                                    id: li.id,
-                                    description: li.description || invFormDesc,
-                                    qty: li.qty,
-                                    rate: li.rate,
-                                    gstRate: li.gstRate,
-                                  }))
-                                : [
-                                    {
-                                      id: "li1",
-                                      description: invFormDesc,
-                                      qty: 1,
-                                      rate:
-                                        invFormAmount / (1 + invFormGst / 100),
-                                      gstRate: invFormGst,
-                                    },
-                                  ];
-                            storedDocs3.push({
-                              id: `inv_edit_${Date.now()}`,
-                              type: "invoice",
-                              number: invNum2,
-                              date: invFormDate,
-                              dueDate: invFormDate,
-                              clientId: clientId3 || "",
-                              status: "sent",
-                              notes: invFormDesc,
-                              lineItems: lineItemsToSave,
-                            });
-                            localStorage.setItem(
-                              "saarathi_business_docs",
-                              JSON.stringify(storedDocs3),
-                            );
-                            window.dispatchEvent(
-                              new CustomEvent("saarathi:docs-updated"),
-                            );
-                            onSendMessage(
-                              `📄 Invoice ${invNum2} sent to ${invFormClient}`,
-                            );
-                          } catch {}
+                              window.dispatchEvent(
+                                new CustomEvent("saarathi:docs-updated"),
+                              );
+                            } catch {}
+                          }
+                          onSendMessage(
+                            `📄 Invoice ${invNum2} sent to ${invFormClient}`,
+                          );
                           setInvoiceEditMode(false);
                           setShowAutoInvoice(false);
                           setShowNewClientForm(false);

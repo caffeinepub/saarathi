@@ -130,10 +130,12 @@ function TodaySummaryStrip({
   messages,
   currentUserId,
   onNavigate,
+  cachedDocs,
 }: {
   messages: Record<string, LocalMessage[]>;
   currentUserId: string;
   onNavigate?: (page: string) => void;
+  cachedDocs?: import("../utils/backendExtensions").CanisterBusinessDoc[];
 }) {
   const counts = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -156,30 +158,45 @@ function TodaySummaryStrip({
       }
     } catch {}
 
-    try {
-      const raw = localStorage.getItem("saarathi_business_docs");
-      if (raw) {
-        const docs = JSON.parse(raw);
-        const unpaid = docs.filter(
-          (d: {
-            type: string;
-            status: string;
-            lineItems: Array<{ qty: number; rate: number; gstRate: number }>;
-          }) => d.type === "invoice" && d.status !== "paid",
+    if (cachedDocs && cachedDocs.length > 0) {
+      const unpaidDocs = cachedDocs.filter(
+        (d) => "invoice" in d.docType && !("paid" in d.status),
+      );
+      if (unpaidDocs.length > 0) {
+        amountDue = unpaidDocs.reduce(
+          (sum, d) =>
+            sum +
+            d.lineItems.reduce(
+              (s, li) => s + li.qty * li.rate * (1 + li.gstRate / 100),
+              0,
+            ),
+          0,
         );
-        if (unpaid.length > 0) {
-          amountDue = unpaid.reduce(
-            (
-              sum: number,
-              d: {
-                lineItems: Array<{
-                  qty: number;
-                  rate: number;
-                  gstRate: number;
-                }>;
-              },
-            ) => {
-              return (
+      }
+    } else {
+      try {
+        const raw = localStorage.getItem("saarathi_business_docs");
+        if (raw) {
+          const docs = JSON.parse(raw);
+          const unpaid = docs.filter(
+            (d: {
+              type: string;
+              status: string;
+              lineItems: Array<{ qty: number; rate: number; gstRate: number }>;
+            }) => d.type === "invoice" && d.status !== "paid",
+          );
+          if (unpaid.length > 0) {
+            amountDue = unpaid.reduce(
+              (
+                sum: number,
+                d: {
+                  lineItems: Array<{
+                    qty: number;
+                    rate: number;
+                    gstRate: number;
+                  }>;
+                },
+              ) =>
                 sum +
                 d.lineItems.reduce(
                   (
@@ -187,14 +204,13 @@ function TodaySummaryStrip({
                     item: { qty: number; rate: number; gstRate: number },
                   ) => s + item.qty * item.rate * (1 + item.gstRate / 100),
                   0,
-                )
-              );
-            },
-            0,
-          );
+                ),
+              0,
+            );
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     const allMessages = Object.values(messages).flat();
     const unread = allMessages.filter(
@@ -204,7 +220,7 @@ function TodaySummaryStrip({
     ).length;
 
     return { pending, overdue, amountDue, unread: unread || 5, today };
-  }, [messages, currentUserId]);
+  }, [messages, currentUserId, cachedDocs]);
 
   return (
     <div
@@ -377,6 +393,15 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
   const currentDisplayName = profile?.displayName || profile?.username || "You";
   // Map username -> principal string for backend DM calls
   const [principalMap, setPrincipalMap] = useState<Record<string, string>>({});
+  const [cachedClients, setCachedClients] = useState<
+    import("../utils/backendExtensions").CanisterClient[]
+  >([]);
+  const [cachedDocs, setCachedDocs] = useState<
+    import("../utils/backendExtensions").CanisterBusinessDoc[]
+  >([]);
+  const [cachedProducts, setCachedProducts] = useState<
+    import("../utils/backendExtensions").CanisterProduct[]
+  >([]);
 
   const [showOnboarding, setShowOnboarding] = useState(() => {
     try {
@@ -462,6 +487,19 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
           ext.listMyGroups(),
           ext.listDMConversations(),
         ]);
+        // Fetch business data in parallel (non-blocking)
+        Promise.all([
+          ext.listMyClients(),
+          ext.listMyDocs(),
+          ext.listMyProducts(),
+        ])
+          .then(([clients, docs, products]) => {
+            if (cancelled) return;
+            setCachedClients(clients);
+            setCachedDocs(docs);
+            setCachedProducts(products);
+          })
+          .catch(() => {});
         if (cancelled) return;
         // Merge backend groups (non-demo)
         if (backendGroups.length > 0) {
@@ -1004,6 +1042,99 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
     setShowGroupSettings(true);
   }, []);
 
+  const handleSaveClient = async (name: string): Promise<string> => {
+    if (!actor) return "";
+    try {
+      const ext = asExtended(actor);
+      const id = await ext.createClient(name, "", "", "", "", "", "", "");
+      const updated = await ext.listMyClients();
+      setCachedClients(updated);
+      return id;
+    } catch {
+      return "";
+    }
+  };
+
+  const handleSaveProduct = async (
+    name: string,
+    price: number,
+    gstRate: number,
+  ): Promise<string> => {
+    if (!actor) return "";
+    try {
+      const ext = asExtended(actor);
+      const id = await ext.createProduct(name, "", "", "pcs", price, gstRate);
+      const updated = await ext.listMyProducts();
+      setCachedProducts(updated);
+      return id;
+    } catch {
+      return "";
+    }
+  };
+
+  const handleSaveDoc = async (
+    docType: string,
+    clientId: string,
+    lineItems: Array<{
+      productId: string;
+      description: string;
+      hsnSac: string;
+      qty: number;
+      unit: string;
+      rate: number;
+      gstRate: number;
+    }>,
+    date: string,
+    dueDate: string,
+    notes: string,
+    linkedChatId: string,
+  ): Promise<string> => {
+    if (!actor) return "";
+    try {
+      const ext = asExtended(actor);
+      const docTypeVariant =
+        docType === "estimate"
+          ? { estimate: null }
+          : docType === "proposal"
+            ? { proposal: null }
+            : { invoice: null };
+      const lineItemsForCanister = lineItems.map((li, idx) => ({
+        id: `li_${Date.now()}_${idx}`,
+        ...li,
+      }));
+      const numPrefix =
+        docType === "invoice" ? "INV" : docType === "estimate" ? "EST" : "PROP";
+      const existingCount = cachedDocs.filter((d) =>
+        docType === "invoice"
+          ? "invoice" in d.docType
+          : docType === "estimate"
+            ? "estimate" in d.docType
+            : "proposal" in d.docType,
+      ).length;
+      const num = `${numPrefix}-${String(existingCount + 1).padStart(3, "0")}`;
+      const id = await ext.createDoc(
+        docTypeVariant,
+        num,
+        date,
+        dueDate,
+        "",
+        clientId,
+        "",
+        "",
+        lineItemsForCanister,
+        notes,
+        "",
+        "",
+        linkedChatId,
+      );
+      const updated = await ext.listMyDocs();
+      setCachedDocs(updated);
+      return id;
+    } catch {
+      return "";
+    }
+  };
+
   const allUsers: LocalUser[] = [
     {
       id: currentUserId,
@@ -1038,6 +1169,7 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
         messages={messages}
         currentUserId={currentUserId}
         onNavigate={onNavigate}
+        cachedDocs={cachedDocs}
       />
 
       {/* Main flex row: sidebar + chat */}
@@ -1085,6 +1217,12 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
             onBack={handleBack}
             isMobile={isMobile}
             onNavigate={onNavigate}
+            cachedClients={cachedClients}
+            cachedDocs={cachedDocs}
+            cachedProducts={cachedProducts}
+            onSaveClient={handleSaveClient}
+            onSaveProduct={handleSaveProduct}
+            onSaveDoc={handleSaveDoc}
           />
         )}
       </div>
