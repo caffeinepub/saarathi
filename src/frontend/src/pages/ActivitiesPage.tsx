@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -692,6 +693,7 @@ function NewActivityDialog({
             New 5W Activity
           </DialogTitle>
         </DialogHeader>
+        <DialogDescription className="sr-only">Dialog</DialogDescription>
 
         {/* WHO */}
         <div className={`${SECTION_STYLE} border-amber-200 bg-amber-50/40`}>
@@ -1206,6 +1208,7 @@ function SendToMessengerDialog({
             Send to Messenger
           </DialogTitle>
         </DialogHeader>
+        <DialogDescription className="sr-only">Dialog</DialogDescription>
         <p className="text-sm text-muted-foreground mb-3">
           Preview the message that will be sent:
         </p>

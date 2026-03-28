@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -580,6 +581,7 @@ function ClientDialog({
             {client ? "Edit Client" : "Add New Client"}
           </DialogTitle>
         </DialogHeader>
+        <DialogDescription className="sr-only">Dialog</DialogDescription>
         <div className="grid grid-cols-2 gap-3 mt-2">
           <div className="col-span-2">
             <Label className="text-xs text-muted-foreground">
@@ -766,6 +768,7 @@ function ProductDialog({
             {product ? "Edit Product / Service" : "Add Product / Service"}
           </DialogTitle>
         </DialogHeader>
+        <DialogDescription className="sr-only">Dialog</DialogDescription>
         <div className="grid grid-cols-2 gap-3 mt-2">
           <div className="col-span-2">
             <Label className="text-xs text-muted-foreground">Name *</Label>
@@ -1087,6 +1090,7 @@ function DocFormDialog({
             {editDoc ? `Edit ${typeLabel}` : `New ${typeLabel}`}
           </DialogTitle>
         </DialogHeader>
+        <DialogDescription className="sr-only">Dialog</DialogDescription>
 
         <div className="space-y-5 mt-2">
           {/* Proposal cover message */}
@@ -2424,6 +2428,7 @@ function SendDocDialog({
             <Send className="w-4 h-4 text-blue-600" /> Send to Messenger
           </DialogTitle>
         </DialogHeader>
+        <DialogDescription className="sr-only">Dialog</DialogDescription>
         <p className="text-sm text-muted-foreground">Preview message:</p>
         <div className="bg-white rounded-xl border border-blue-100 p-4 text-sm whitespace-pre-wrap font-mono text-foreground">
           {message}

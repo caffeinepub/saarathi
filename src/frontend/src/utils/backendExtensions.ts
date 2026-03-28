@@ -290,6 +290,14 @@ export interface ExtendedBackend extends backendInterface {
  * the missing TypeScript types.
  */
 export function asExtended(actor: backendInterface): ExtendedBackend {
+  // The Backend class wraps a private `actor` field which is the raw
+  // ActorSubclass<_SERVICE> that has ALL canister methods.
+  // We access it via any-cast to bypass TypeScript private access.
+  const raw = (actor as unknown as { actor: unknown }).actor;
+  if (raw && typeof raw === "object") {
+    return raw as unknown as ExtendedBackend;
+  }
+  // Fallback: direct cast (e.g. in tests / mock backends)
   return actor as unknown as ExtendedBackend;
 }
 
