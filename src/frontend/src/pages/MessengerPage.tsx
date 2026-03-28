@@ -1,4 +1,4 @@
-import { Compass, MessageSquarePlus, X } from "lucide-react";
+import { Compass, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useActor } from "../hooks/useActor";
@@ -731,6 +731,34 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
     return () => clearInterval(interval);
   }, [actor, currentChat, groups, principalMap]);
 
+  // Resolve principal for DM contact when opening a chat (handles contacts added before actor was ready)
+  useEffect(() => {
+    if (!actor || !currentChat || currentChat.type !== "dm") return;
+    const dmUserId = (currentChat as { type: "dm"; userId: string }).userId;
+    if (principalMap[dmUserId]) return;
+    let cancelled = false;
+    async function resolvePrincipal() {
+      try {
+        const allUsers = await asExtended(actor!).getAllPublicUsers();
+        const match = allUsers.find(
+          (u) => u.username.toLowerCase() === dmUserId.toLowerCase(),
+        );
+        if (!cancelled && match?.principal) {
+          setPrincipalMap((prev) => ({
+            ...prev,
+            [dmUserId]: match.principal.toString(),
+          }));
+        }
+      } catch {
+        // ignore
+      }
+    }
+    resolvePrincipal();
+    return () => {
+      cancelled = true;
+    };
+  }, [actor, currentChat, principalMap]);
+
   // Inject pending task messages written by AI panel
   useEffect(() => {
     try {
@@ -904,17 +932,38 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
     [currentChat],
   );
 
-  const handleStartDM = useCallback((user: LocalUser) => {
-    setDmContacts((prev) =>
-      prev.some((u) => u.id === user.id) ? prev : [...prev, user],
-    );
-    setCurrentChat({
-      type: "dm",
-      userId: user.id,
-      displayName: user.displayName,
-    });
-    setMobileShowChat(true);
-  }, []);
+  const handleStartDM = useCallback(
+    async (user: LocalUser) => {
+      setDmContacts((prev) =>
+        prev.some((u) => u.id === user.id) ? prev : [...prev, user],
+      );
+      setCurrentChat({
+        type: "dm",
+        userId: user.id,
+        displayName: user.displayName,
+      });
+      setMobileShowChat(true);
+      // Resolve the backend principal for this user so messages can be sent/received
+      if (actor && !principalMap[user.id]) {
+        try {
+          const lookup = (user.username || user.id).toLowerCase();
+          const allUsers = await asExtended(actor).getAllPublicUsers();
+          const match = allUsers.find(
+            (u) => u.username.toLowerCase() === lookup,
+          );
+          if (match?.principal) {
+            setPrincipalMap((prev) => ({
+              ...prev,
+              [user.id]: match.principal.toString(),
+            }));
+          }
+        } catch {
+          // Ignore — will retry when chat is opened
+        }
+      }
+    },
+    [actor, principalMap],
+  );
 
   const handleCreateGroup = useCallback(
     async (name: string, description: string) => {
@@ -1268,20 +1317,6 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
           />
         )}
       </div>
-
-      {/* Floating New DM Button — visible only when sidebar is shown */}
-      {showSidebar && (
-        <button
-          type="button"
-          onClick={() => setShowNewDM(true)}
-          className="fixed bottom-6 right-24 z-40 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition-all hover:scale-105 active:scale-95"
-          data-ocid="messenger.new_dm.open_modal_button"
-          title="New Direct Message"
-        >
-          <MessageSquarePlus className="w-4 h-4" />
-          New DM
-        </button>
-      )}
 
       {/* Modals */}
       <NewDMModal

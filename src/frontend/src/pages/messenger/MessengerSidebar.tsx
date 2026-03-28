@@ -296,7 +296,7 @@ export default function MessengerSidebar({
                       key={user.id}
                       type="button"
                       onClick={() => onSelectChat(target)}
-                      className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-sm transition-colors ${
+                      className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-xs transition-colors ${
                         active ? "bg-amber-500 text-white" : "hover:bg-white/10"
                       }`}
                       style={active ? {} : { color: "#b0a898" }}
