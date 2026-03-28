@@ -127,9 +127,8 @@ export async function createActorWithConfig(
 
   const config = await loadConfig();
   const resolvedOptions = options ?? {};
-  const { agentOptions: _agentOpts, ...restOptions } = resolvedOptions;
   const agent = new HttpAgent({
-    ..._agentOpts,
+    ...resolvedOptions.agentOptions,
     host: config.backend_host,
   });
   if (config.backend_host?.includes("localhost")) {
@@ -141,7 +140,7 @@ export async function createActorWithConfig(
     });
   }
   const actorOptions = {
-    ...restOptions,
+    ...resolvedOptions,
     agent: agent,
     processError,
   };

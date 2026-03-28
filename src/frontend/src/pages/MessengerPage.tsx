@@ -430,8 +430,15 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
     try {
       const stored = localStorage.getItem("saarathi_dm_contacts");
       if (stored) {
-        const parsed = JSON.parse(stored) as LocalUser[];
-        if (parsed.length > 0) return parsed;
+        const parsed = JSON.parse(stored) as Array<
+          LocalUser & { label?: string }
+        >;
+        // Normalize old 'label' field to 'displayName' for backwards compat
+        const normalized = parsed.map((u) => ({
+          ...u,
+          displayName: u.displayName || u.label || u.username || "?",
+        }));
+        if (normalized.length > 0) return normalized;
       }
     } catch {}
     if (demoCleared) return [];
@@ -636,7 +643,7 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
         JSON.stringify(
           dmContacts.map((u) => ({
             id: u.id,
-            label: u.displayName,
+            displayName: u.displayName,
             username: u.username,
           })),
         ),
