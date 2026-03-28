@@ -575,6 +575,7 @@ function ClientDialog({
         className="max-w-lg w-full max-h-[calc(100vh-80px)] overflow-y-auto bg-[#fdf8f0] border border-amber-200"
         style={{ marginTop: "4rem" }}
         data-ocid="client.dialog"
+        aria-describedby={undefined}
       >
         <DialogHeader>
           <DialogTitle className="font-display font-bold text-foreground">
@@ -762,6 +763,7 @@ function ProductDialog({
         className="max-w-lg w-full max-h-[calc(100vh-80px)] overflow-y-auto bg-[#fdf8f0] border border-amber-200"
         style={{ marginTop: "4rem" }}
         data-ocid="product.dialog"
+        aria-describedby={undefined}
       >
         <DialogHeader>
           <DialogTitle className="font-display font-bold text-foreground">
@@ -1062,6 +1064,7 @@ function DocFormDialog({
       <DialogContent
         className="sm:max-w-5xl w-full max-h-[calc(100vh-4rem)] overflow-y-auto bg-[#fdf8f0] border border-amber-200"
         data-ocid="doc.dialog"
+        aria-describedby={undefined}
       >
         {/* Print-only header */}
         <div className="hidden print:block mb-6 border-b-2 border-amber-400 pb-4">
@@ -2422,6 +2425,7 @@ function SendDocDialog({
       <DialogContent
         className="max-w-md bg-[#fdf8f0] border border-amber-200"
         data-ocid="doc.modal"
+        aria-describedby={undefined}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-display">

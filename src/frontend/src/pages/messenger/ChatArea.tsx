@@ -186,6 +186,7 @@ function ShareBusinessDocModal({
       <DialogContent
         className="sm:max-w-md bg-white border border-amber-200"
         data-ocid="messenger.share_doc.dialog"
+        aria-describedby={undefined}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -333,6 +334,7 @@ function ShareActivityModal({
       <DialogContent
         className="sm:max-w-md bg-white border border-amber-200"
         data-ocid="messenger.share_activity.dialog"
+        aria-describedby={undefined}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -2388,6 +2390,7 @@ export default function ChatArea({
         <DialogContent
           className="sm:max-w-md bg-white border border-purple-200"
           data-ocid="messenger.ai_reply.dialog"
+          aria-describedby={undefined}
         >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-purple-700">

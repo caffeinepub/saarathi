@@ -458,6 +458,18 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
 
   // Modals
   const [showNewDM, setShowNewDM] = useState(false);
+  const [settingsContacts, setSettingsContacts] = useState<LocalUser[]>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("saarathi_contacts") || "[]");
+      return raw.map((c: { id: string; name: string; phone: string }) => ({
+        id: c.id,
+        displayName: c.name || c.phone,
+        username: c.phone,
+      }));
+    } catch {
+      return [];
+    }
+  });
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [settingsGroupId, setSettingsGroupId] = useState<string | null>(null);
@@ -594,6 +606,26 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
       window.removeEventListener("saarathi_messages_updated", handler);
       window.removeEventListener("storage", handler);
     };
+  }, []);
+
+  // Sync settingsContacts when Settings page adds contacts
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key === "saarathi_contacts") {
+        try {
+          const raw = JSON.parse(e.newValue || "[]");
+          setSettingsContacts(
+            raw.map((c: { id: string; name: string; phone: string }) => ({
+              id: c.id,
+              displayName: c.name || c.phone,
+              username: c.phone,
+            })),
+          );
+        } catch {}
+      }
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   // Persist dmContacts so AI panel can build correct DM keys
@@ -1142,6 +1174,9 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
       username: currentUserId,
     },
     ...SAMPLE_USERS,
+    ...settingsContacts.filter(
+      (c) => c.id !== currentUserId && !SAMPLE_USERS.find((s) => s.id === c.id),
+    ),
   ];
 
   const settingsGroup = groups.find((g) => g.id === settingsGroupId) ?? null;
@@ -1248,6 +1283,7 @@ export default function MessengerPage({ onNavigate }: MessengerPageProps) {
         existingDMs={dmContacts.map((u) => u.id)}
         currentUserId={currentUserId}
         onStartDM={handleStartDM}
+        allUsers={allUsers}
       />
 
       <NewGroupModal

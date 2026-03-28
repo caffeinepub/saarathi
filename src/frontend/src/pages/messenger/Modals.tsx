@@ -40,6 +40,7 @@ interface NewDMProps {
   existingDMs: string[];
   currentUserId: string;
   onStartDM: (user: LocalUser) => void;
+  allUsers: LocalUser[];
 }
 
 export function NewDMModal({
@@ -48,10 +49,11 @@ export function NewDMModal({
   existingDMs,
   currentUserId,
   onStartDM,
+  allUsers,
 }: NewDMProps) {
   const [search, setSearch] = useState("");
-  const allUsers = SAMPLE_USERS.filter((u) => u.id !== currentUserId);
-  const filtered = allUsers.filter(
+  const availableUsers = allUsers.filter((u) => u.id !== currentUserId);
+  const filtered = availableUsers.filter(
     (u) =>
       u.displayName.toLowerCase().includes(search.toLowerCase()) ||
       u.username.toLowerCase().includes(search.toLowerCase()),
@@ -62,6 +64,7 @@ export function NewDMModal({
       <DialogContent
         className="sm:max-w-md bg-white"
         data-ocid="messenger.new_dm.dialog"
+        aria-describedby={undefined}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -159,6 +162,7 @@ export function NewGroupModal({ open, onClose, onCreateGroup }: NewGroupProps) {
       <DialogContent
         className="sm:max-w-md bg-white"
         data-ocid="messenger.new_group.dialog"
+        aria-describedby={undefined}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -271,6 +275,7 @@ export function NewSubgroupModal({
       <DialogContent
         className="sm:max-w-md bg-white"
         data-ocid="messenger.new_subgroup.dialog"
+        aria-describedby={undefined}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -434,6 +439,7 @@ export function GroupSettingsModal({
       <DialogContent
         className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-white"
         data-ocid="messenger.group_settings.dialog"
+        aria-describedby={undefined}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
