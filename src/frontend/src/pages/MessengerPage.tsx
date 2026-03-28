@@ -224,7 +224,7 @@ function TodaySummaryStrip({
 
   return (
     <div
-      className="flex items-center gap-1 px-4 py-2 flex-shrink-0 overflow-x-auto"
+      className="flex flex-wrap items-center gap-1 px-4 py-2 flex-shrink-0"
       style={{
         background: "#111",
         borderBottom: "1px solid #2a2a2a",

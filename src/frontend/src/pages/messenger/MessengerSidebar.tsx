@@ -130,12 +130,12 @@ function GroupTreeItem({
           ) : (
             <Hash className="w-3.5 h-3.5 flex-shrink-0 text-amber-400/70" />
           )}
-          <span className="min-w-0 flex-1 truncate text-xs font-medium">
+          <span className="min-w-0 flex-1 truncate overflow-hidden text-xs font-medium">
             {group.name}
           </span>
           {isDemo ? <DemoBadge /> : <RealBadge />}
           <span
-            className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium ${
+            className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium ${
               active
                 ? "bg-white/20 text-white"
                 : "bg-amber-500/20 text-amber-400"
@@ -145,7 +145,7 @@ function GroupTreeItem({
           </span>
         </button>
 
-        {/* + Sub button — only for admins, only when depth < 9 */}
+        {/* + Sub button — only visible on hover, takes no space when hidden */}
         {canAddSubgroup && (
           <button
             type="button"
@@ -153,9 +153,9 @@ function GroupTreeItem({
               e.stopPropagation();
               onNewSubgroup(group.id);
             }}
-            className={`py-2 pr-1 opacity-0 group-hover:opacity-100 transition-opacity text-[9px] font-bold ${
+            className={`hidden group-hover:inline-flex items-center py-2 pr-1 text-[9px] font-bold ${
               active
-                ? "text-white/70 !opacity-100"
+                ? "text-white/70"
                 : "text-amber-400/70 hover:text-amber-300"
             }`}
             title="Add subgroup"
@@ -165,7 +165,7 @@ function GroupTreeItem({
           </button>
         )}
 
-        {/* Settings gear */}
+        {/* Settings gear — only visible on hover, takes no space when hidden */}
         {isAdmin && (
           <button
             type="button"
@@ -173,9 +173,9 @@ function GroupTreeItem({
               e.stopPropagation();
               onGroupSettings(group.id);
             }}
-            className={`pr-1.5 py-2 opacity-0 group-hover:opacity-100 transition-opacity ${
+            className={`hidden group-hover:inline-flex items-center pr-1.5 py-2 ${
               active
-                ? "text-white/70 !opacity-100"
+                ? "text-white/70"
                 : "text-amber-400/60 hover:text-amber-400"
             }`}
             title="Group settings"
@@ -233,7 +233,7 @@ export default function MessengerSidebar({
 
   return (
     <div
-      className="flex flex-col h-full w-72 flex-shrink-0 overflow-hidden"
+      className="flex flex-col h-full w-72 flex-shrink-0 overflow-x-hidden"
       style={{ backgroundColor: "#1e1e1e", borderRight: "1px solid #333" }}
     >
       {/* Header */}
@@ -251,8 +251,8 @@ export default function MessengerSidebar({
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="px-2 py-3 space-y-1">
+      <ScrollArea className="flex-1 overflow-x-hidden">
+        <div className="px-2 py-3 space-y-1 w-full">
           {/* Direct Messages */}
           <div>
             <div className="flex items-center px-2 py-1.5">
@@ -272,7 +272,7 @@ export default function MessengerSidebar({
               <button
                 type="button"
                 onClick={onNewDM}
-                className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-semibold transition-colors"
+                className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-semibold transition-colors flex-shrink-0"
                 title="New DM"
                 data-ocid="messenger.dm.open_modal_button"
               >
@@ -296,7 +296,7 @@ export default function MessengerSidebar({
                       key={user.id}
                       type="button"
                       onClick={() => onSelectChat(target)}
-                      className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-xs transition-colors min-w-0 overflow-hidden ${
+                      className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-xs transition-colors min-w-0 ${
                         active ? "bg-amber-500 text-white" : "hover:bg-white/10"
                       }`}
                       style={active ? {} : { color: "#b0a898" }}
@@ -311,7 +311,7 @@ export default function MessengerSidebar({
                           {getInitials(user.displayName)}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="truncate text-xs font-medium flex-1">
+                      <span className="truncate overflow-hidden text-xs font-medium flex-1 min-w-0">
                         {user.displayName}
                       </span>
                       {isDemoUser ? (
