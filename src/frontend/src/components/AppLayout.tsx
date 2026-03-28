@@ -22,6 +22,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import AIChatPanel from "../components/AIChatPanel";
 import { useAuth } from "../context/AuthContext";
+import { useKeepAlive } from "../hooks/useKeepAlive";
 import AIAssistantPage from "../pages/AIAssistantPage";
 import ActivitiesPage from "../pages/ActivitiesPage";
 import BusinessSuitePage from "../pages/BusinessSuitePage";
@@ -349,6 +350,8 @@ function Sidebar({
 }
 
 export default function AppLayout() {
+  useKeepAlive();
+
   const [activePage, setActivePage] = useState<PageKey>("messenger");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
