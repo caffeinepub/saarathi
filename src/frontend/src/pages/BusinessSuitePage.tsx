@@ -2828,6 +2828,7 @@ export default function BusinessSuitePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [docs, setDocs] = useState<BusinessDoc[]>([]);
   const [loadingBusiness, setLoadingBusiness] = useState(true);
+  const [canisterStopped, setCanisterStopped] = useState(false);
   const [sendTarget, setSendTarget] = useState<BusinessDoc | null>(null);
   const [printDoc, setPrintDoc] = useState<BusinessDoc | null>(null);
 
@@ -2894,8 +2895,17 @@ export default function BusinessSuitePage() {
         setProducts(rawProducts.map(mapCanisterProduct));
         setDocs(rawDocs.map(mapCanisterDoc));
       } catch (err) {
-        console.error("Failed to load business data:", err);
-        toast.error("Failed to load business data");
+        const msg = String(err);
+        if (
+          msg.includes("IC0508") ||
+          msg.includes("is stopped") ||
+          msg.includes("stopped and therefore")
+        ) {
+          setCanisterStopped(true);
+        } else {
+          console.error("Failed to load business data:", err);
+          toast.error("Failed to load business data");
+        }
       } finally {
         setLoadingBusiness(false);
       }
@@ -3273,6 +3283,14 @@ export default function BusinessSuitePage() {
       `}</style>
 
       <div className="min-h-full bg-background">
+        {canisterStopped && (
+          <div className="bg-yellow-500/20 border-b border-yellow-500/40 px-4 py-2 text-yellow-700 text-sm flex items-center gap-2">
+            <span>⚠️</span>
+            <span>
+              Backend temporarily unavailable — showing cached data. Retrying...
+            </span>
+          </div>
+        )}
         {/* Header */}
         <div className="bg-gradient-to-r from-amber-500 to-amber-400 px-6 py-6">
           <div className="max-w-5xl mx-auto flex items-center justify-between">

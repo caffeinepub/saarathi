@@ -1572,6 +1572,7 @@ export default function ActivitiesPage() {
   const { actor } = useActor();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(true);
+  const [canisterStopped, setCanisterStopped] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [filter, setFilter] = useState<"all" | ActivityStatus>("all");
   const [messengerTarget, setMessengerTarget] = useState<Activity | null>(null);
@@ -1619,8 +1620,17 @@ export default function ActivitiesPage() {
         }));
         setActivities(mapped);
       } catch (err) {
-        console.error("Failed to load activities:", err);
-        toast.error("Failed to load activities");
+        const msg = String(err);
+        if (
+          msg.includes("IC0508") ||
+          msg.includes("is stopped") ||
+          msg.includes("stopped and therefore")
+        ) {
+          setCanisterStopped(true);
+        } else {
+          console.error("Failed to load activities:", err);
+          toast.error("Failed to load activities");
+        }
       } finally {
         setLoadingActivities(false);
       }
@@ -1864,6 +1874,14 @@ export default function ActivitiesPage() {
 
   return (
     <div className="min-h-full bg-background">
+      {canisterStopped && (
+        <div className="bg-yellow-500/20 border-b border-yellow-500/40 px-4 py-2 text-yellow-700 text-sm flex items-center gap-2">
+          <span>⚠️</span>
+          <span>
+            Backend temporarily unavailable — showing cached data. Retrying...
+          </span>
+        </div>
+      )}
       {/* Header */}
       <div className="bg-gradient-to-r from-amber-500 to-amber-400 px-6 py-6">
         <div className="max-w-4xl mx-auto flex items-center justify-between">

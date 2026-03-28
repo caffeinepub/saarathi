@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { createActorWithConfig } from "../config";
 import { useAuth } from "../context/AuthContext";
 import { asExtended } from "../utils/backendExtensions";
-import { loadIdentity } from "../utils/identityUtils";
 
 const PING_INTERVAL_MS = 25_000; // 25 seconds
 
@@ -12,14 +11,13 @@ const PING_INTERVAL_MS = 25_000; // 25 seconds
  * inactivity (IC0508 "canister is stopped").
  */
 export function useKeepAlive() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, identity } = useAuth();
 
   useEffect(() => {
     if (!isLoggedIn) return;
 
     const ping = async () => {
       try {
-        const identity = loadIdentity();
         const actor = await createActorWithConfig(
           identity ? { agentOptions: { identity } } : undefined,
         );
@@ -35,5 +33,5 @@ export function useKeepAlive() {
     ping();
     const id = setInterval(ping, PING_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [isLoggedIn]);
+  }, [isLoggedIn, identity]);
 }
